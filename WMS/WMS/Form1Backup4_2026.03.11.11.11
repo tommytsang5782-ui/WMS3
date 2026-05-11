@@ -1,0 +1,1350 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace WMS
+{
+    class Form1Backup3_2026
+    {
+    }
+}
+
+using ExtensionMethods;
+using Newtonsoft.Json;
+using System;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Data.SqlTypes;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Json;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Input;
+using WMS.Database_Dao;
+using WMS.Models;
+using WMS.Page;
+using WMS.ReceiveMessage;
+namespace WMS
+{
+    public partial class Form1 : Form
+    {
+        Socket ServerSocket = null;
+        // ?????Dictionary ? RemoteEndPoint ? key
+        ConcurrentDictionary<string, Socket> dic = new ConcurrentDictionary<string, Socket>();
+        ConcurrentDictionary<string, string> dic2 = new ConcurrentDictionary<string, string>();
+        // ?? Thread.Abort??? CancellationTokenSource
+        CancellationTokenSource cts;
+        Thread thread;
+
+        Boolean booStart = false;
+        static String DataSource;
+        static String InitialCatalog;
+        static String UserID;
+        static String Password;
+        public static NAV.NAV nav;
+        static Boolean timerStarted;
+        TimersTimer timera = new TimersTimer();
+
+
+        public Form1()
+        {
+            InitializeComponent();
+            Patrolcar patrolcar = new Patrolcar();
+            patrolcar.dgd_ini.getIni();
+            StartStopBtn.Text = "Start";
+            //IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
+            //IPAddress ipAddress = host.AddressList[0];
+            //foreach (var ip in host.AddressList)
+            //{
+            //    if (ip.AddressFamily == AddressFamily.InterNetwork)
+            //    {
+            //        Console.WriteLine("IP Address = " + ip.ToString());
+            //    }
+            //}
+            if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+            {
+                Console.WriteLine("No Network Available");
+            }
+
+            ////   LoadIpAddressesToComboBox();++++++++++++++++++++++++++++++   ////
+            //IPHostEntry host2 = Dns.GetHostEntry(Dns.GetHostName());
+
+            //var ippaddress = host2
+            //    .AddressList
+            //    .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
+            ////Console.WriteLine(ippaddress);
+
+            //IPtextBox.Text = ippaddress.ToString();
+
+            LoadIpAddressesToComboBox();
+            ////   LoadIpAddressesToComboBox();++++++++++++++++++++++++++++++   ////
+
+            // 注入連線設定供 DAO 層使用，避免 Dao_Connection 依賴 Form1
+            DbConnectionConfig.Set(
+                Properties.Settings.Default.DataSource ?? "",
+                Properties.Settings.Default.InitialCatalog ?? "",
+                Properties.Settings.Default.DBUserID ?? "",
+                Properties.Settings.Default.DBPassword ?? "");
+            // Load socket timeout settings into UI (defaults: 5 min receive, 1 min send)
+            int recv = Properties.Settings.Default.SocketReceiveTimeoutMs;
+            int send = Properties.Settings.Default.SocketSendTimeoutMs;
+            if (recv >= 1000) nudReceiveTimeoutMs.Value = Math.Min(recv, (int)nudReceiveTimeoutMs.Maximum);
+            if (send >= 1000) nudSendTimeoutMs.Value = Math.Min(send, (int)nudSendTimeoutMs.Maximum);
+        }
+
+        private void LoadIpAddressesToComboBox()
+        {
+            try
+            {
+                // ????????? IP ??
+                comboBox1.Items.Clear();
+
+                // ?????????? IP
+                IPHostEntry host2 = Dns.GetHostEntry(Dns.GetHostName());
+
+                // ?? IPv4?AddressFamily.InterNetwork ? IPv4?
+                var ipv4Addresses = host2.AddressList
+                    .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                    .ToList();
+
+                // ???? IPv4 ??
+                if (ipv4Addresses.Count == 0)
+                {
+                    comboBox1.Items.Add("??? IPv4 ??");
+                }
+                else
+                {
+                    // ??? IPv4 ?? comboBox1
+                    foreach (var ip in ipv4Addresses)
+                    {
+                        comboBox1.Items.Add(ip.ToString());
+                    }
+                    // ?????? IP
+                    comboBox1.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                // ?? IP ????????
+                comboBox1.Items.Clear();
+                comboBox1.Items.Add($"???? IP?{ex.Message}");
+                MessageBox.Show($"?????? IP ???{ex.Message}", "??",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void Startbtn_Click(object sender, EventArgs e)
+        {
+            if (!booStart)
+            {
+                try
+                {
+                    // Persist socket timeout settings for this and future runs
+                    int recv = (int)nudReceiveTimeoutMs.Value;
+                    int send = (int)nudSendTimeoutMs.Value;
+                    if (recv >= 1000 && send >= 1000)
+                    {
+                        Properties.Settings.Default.SocketReceiveTimeoutMs = recv;
+                        Properties.Settings.Default.SocketSendTimeoutMs = send;
+                        Properties.Settings.Default.Save();
+                    }
+                    IPEndPoint IPE = new IPEndPoint(IPAddress.Parse(comboBox1.Text), Int32.Parse(ProttextBox.Text));
+                    ServerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    ServerSocket.Bind(IPE);
+                    ServerSocket.Listen(10);
+                    StartStopBtn.Text = "Stop";
+                    booStart = true;
+                    DataSource = Properties.Settings.Default.DataSource;
+                    InitialCatalog = Properties.Settings.Default.InitialCatalog;
+                    UserID = Properties.Settings.Default.DBUserID;
+                    Password = Properties.Settings.Default.DBPassword;
+                    DbConnectionConfig.Set(DataSource, InitialCatalog, UserID, Password);
+                    showmsg("服務器已啓動，監聽中...");
+                    Log log = new Log();
+                    List<String> valueTitle = null;
+                    List<String> value = null;
+                    log.EventLog("Server Start", Environment.MachineName, valueTitle, value);
+                    log = null;
+
+                    // ?? CancellationTokenSource ??????????
+                    cts = new CancellationTokenSource();
+                    thread = new Thread(() => ListenClientConnect(cts.Token));
+                    thread.IsBackground = true;
+                    thread.Start();
+
+                    if (!timerStarted)
+                    {
+                        timera.InitTimer();
+                        timera.timer_Start();
+                        timerStarted = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    showmsg("??????????: " + ex.Message);
+                    booStart = false;
+                }
+            }
+            else
+            {
+                // ??????? Thread.Abort()
+                try
+                {
+                    booStart = false;
+                    // ?????????? ServerSocket ??? Accept ???
+                    cts?.Cancel();
+                    try { ServerSocket?.Close(); } catch { }
+
+                    // ??????????
+                    if (thread != null && thread.IsAlive)
+                    {
+                        thread.Join(1000);
+                    }
+
+                    timera.timer_Stop();
+                    StartStopBtn.Text = "Start";
+
+                    DataSource = "";
+                    InitialCatalog = "";
+                    UserID = "";
+                    Password = "";
+                    showmsg("??????");
+                    Log log = new Log();
+                    List<String> valueTitle = null;
+                    List<String> value = null;
+                    log.EventLog("Server Stop", Environment.MachineName, valueTitle, value);
+                    log = null;
+
+                    // ???????
+                    foreach (var kv in dic)
+                    {
+                        try
+                        {
+                            kv.Value.Shutdown(SocketShutdown.Both);
+                            kv.Value.Close();
+                        }
+                        catch { }
+                    }
+                    dic.Clear();
+                    dic2.Clear();
+                    IPlistBox.Items.Clear();
+                }
+                catch (Exception ex)
+                {
+                    showmsg("??????????: " + ex.Message);
+                }
+            }
+        }
+        // ? ListenClientConnect ????? CancellationToken
+        private void ListenClientConnect(object tokenObj)
+        {
+            var token = tokenObj as CancellationToken?;
+            try
+            {
+                while (booStart && (token == null || !token.Value.IsCancellationRequested))
+                {
+                    Socket socketClient = null;
+                    try
+                    {
+                        // Accept ?? ServerSocket.Close() ????????????
+                        socketClient = ServerSocket.Accept();
+                    }
+                    catch (SocketException)
+                    {
+                        // ??? Close() ????????????
+                        if (token != null && token.Value.IsCancellationRequested) break;
+                        else throw;
+                    }
+
+                    if (socketClient == null) break;
+
+                    try
+                    {
+                        int recvMs = Properties.Settings.Default.SocketReceiveTimeoutMs;
+                        int sendMs = Properties.Settings.Default.SocketSendTimeoutMs;
+                        if (recvMs < 1000) recvMs = 300000;
+                        if (sendMs < 1000) sendMs = 60000;
+                        socketClient.ReceiveTimeout = recvMs;
+                        socketClient.SendTimeout = sendMs;
+                        string RemoteIP = socketClient.RemoteEndPoint.ToString();
+                        dic.TryAdd(RemoteIP, socketClient);
+                        dic2.TryAdd(RemoteIP, "");
+                        Invoke(new MethodInvoker(() => IPlistBox.Items.Add(RemoteIP)));
+                        showmsg(RemoteIP + "???");
+
+                        Thread.Sleep(200);
+                        Thread recieveThread = new Thread(recievemsg);
+                        recieveThread.IsBackground = true;
+                        recieveThread.Start(socketClient);
+                    }
+                    catch (Exception exInner)
+                    {
+                        showmsg("??????????: " + exInner.Message);
+                        try { socketClient?.Close(); } catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // ???????????
+                showmsg("ListenClientConnect ????: " + ex.Message);
+            }
+        }
+        private static String DELIMITER = "_$";
+        public void recievemsg(object soc)
+        {
+            Socket socketClient = soc as Socket;
+            if (socketClient == null) return;
+
+            CommuForm commuForm = new CommuForm("", "", "", "");
+            NetworkStream ns = null;
+            StreamReader sr = null;
+            StreamWriter sw = null;
+            string RemoteEndPointtxt = socketClient.RemoteEndPoint.ToString();
+            MessageText MsgTxt = new MessageText();
+
+            DateTime dateTime = DateTime.Now;
+            string json = "";
+            string msg;
+            String MACAddress = "";
+            string tableName = "";
+
+            try
+            {
+                ns = new NetworkStream(socketClient);
+                sr = new StreamReader(ns, Encoding.BigEndianUnicode);
+                sw = new StreamWriter(ns, Encoding.BigEndianUnicode) { AutoFlush = true };
+
+                while (true)
+                {
+                    if (!booStart)
+                    {
+                        // ??????????
+                        RemoveListBox(socketClient.RemoteEndPoint.ToString());
+                        try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+                        try { socketClient.Close(); } catch { }
+                        break;
+                    }
+
+                    msg = null;
+                    try
+                    {
+                        msg = sr.ReadLine();
+
+                        if (string.IsNullOrEmpty(msg))
+                        {
+                            Thread.Sleep(200);
+                            continue;
+                        }
+                        showmsg("[" + msg + "]");
+                    }
+                    catch (IOException)
+                    {
+                        // ????
+                        showmsg("[Disconnect]");
+                        msg = null;
+                        break;
+                    }
+
+                    if (string.IsNullOrEmpty(msg))
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                    }
+
+                    // ?? JSON ?????
+                    try
+                    {
+                        commuForm = JsonConvert.DeserializeObject<CommuForm>(msg);
+                        showmsg(commuForm.Action);
+                        showmsg(commuForm.Command);
+                    }
+                    catch (JsonException jex)
+                    {
+                        showmsg("Failed to parse the received message: " + jex.Message);
+                        continue; // ???????
+                    }
+
+                    switch (commuForm.Command)
+                    {
+                        case "Open":
+                            switch (commuForm.Action)
+                            {
+                                case "List":
+                                    switch (commuForm.Table)
+                                    {
+                                        case "UserList":
+                                            UserList userList = new UserList();
+                                            userList.OpenUserList(socketClient, this);
+                                            break;
+                                        case "UserCard":
+                                            User_Control userCardControl = new User_Control();
+                                            userCardControl.OpenUserCard();
+                                            break;
+                                    }
+                                    break;
+                            }
+                            break;
+                        case "SQL":
+                            //string remoteIp = socketClient.RemoteEndPoint.ToString();
+                            //bool isAndroid = dic2.TryGetValue(remoteIp, out string cType) && cType == "Android";
+                            //if (!isAndroid)
+                            //{
+                            int effectedRows = 0;
+                            string responseJson = string.Empty;
+                            if (string.IsNullOrEmpty(DbConnectionConfig.DataSource))
+                            {
+                                responseJson = SerializeToJson(new { Code = -2, Msg = "Database not configured. Please configure and start the WMS server." });
+                                SendUnifiedResponse(socketClient, responseJson);
+                            }
+                            else
+                                try
+                                {
+
+                                    switch (commuForm.Table)
+                                    {
+                                        case "User":
+                                            List<User> RCVUserList = JsonConvert.DeserializeObject<List<User>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<User> userList = DaoManager.daoUser.Select(RCVUserList.First());
+                                                    responseJson = SerializeToJson(userList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoUser.Update(RCVUserList[0].UserID, RCVUserList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoUser.Insert(RCVUserList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoUser.Delete(RCVUserList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "Item":
+                                            List<Item> RCVItemList = JsonConvert.DeserializeObject<List<Item>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<Item> itemList = DaoManager.daoItem.Select(RCVItemList.First());
+                                                    responseJson = SerializeToJson(itemList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoItem.Update(RCVItemList[0].No, RCVItemList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoItem.Insert(RCVItemList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoItem.Delete(RCVItemList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "CustomerGroup":
+                                            List<CustomerGroup> RCVCustomerGroupList = JsonConvert.DeserializeObject<List<CustomerGroup>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<CustomerGroup> dataList = DaoManager.daoCustomerGroup.Select(RCVCustomerGroupList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoCustomerGroup.Update(RCVCustomerGroupList[0].Code, RCVCustomerGroupList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoCustomerGroup.Insert(RCVCustomerGroupList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoCustomerGroup.Delete(RCVCustomerGroupList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "PackingHeader":
+                                            List<PackingHeader> RCVPackingHeaderList = JsonConvert.DeserializeObject<List<PackingHeader>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<PackingHeader> dataList = DaoManager.daoPackingHeader.Select(RCVPackingHeaderList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPackingHeader.Update(RCVPackingHeaderList[0], RCVPackingHeaderList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPackingHeader.Insert(RCVPackingHeaderList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPackingHeader.Delete(RCVPackingHeaderList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "PackingLine":
+                                            List<PackingLine> RCVPackingLineList = JsonConvert.DeserializeObject<List<PackingLine>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<PackingLine> dataList = DaoManager.daoPackingLine.Select(RCVPackingLineList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPackingLine.Update(RCVPackingLineList[0], RCVPackingLineList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPackingLine.Insert(RCVPackingLineList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPackingLine.Delete(RCVPackingLineList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "Mapping":
+                                            List<Mapping> RCVMappingList = JsonConvert.DeserializeObject<List<Mapping>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<Mapping> dataList = DaoManager.daoMapping.Select(RCVMappingList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoMapping.Update(RCVMappingList[0].No, RCVMappingList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoMapping.Insert(RCVMappingList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoMapping.Delete(RCVMappingList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ScanLabelString":
+                                            List<ScanLabelString> RCVScanLabelStringList = JsonConvert.DeserializeObject<List<ScanLabelString>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ScanLabelString> dataList = DaoManager.daoScanLabelString.Select(RCVScanLabelStringList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoScanLabelString.Update(RCVScanLabelStringList[0].EntryNo, RCVScanLabelStringList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoScanLabelString.Insert(RCVScanLabelStringList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoScanLabelString.Delete(RCVScanLabelStringList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "Prescan":
+                                            List<Prescan> RCVPrescanList = JsonConvert.DeserializeObject<List<Prescan>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<Prescan> dataList = DaoManager.daoPrescan.Select(RCVPrescanList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPrescan.Update(RCVPrescanList[0], RCVPrescanList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPrescan.Insert(RCVPrescanList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPrescan.Delete(RCVPrescanList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "OuterCarton":
+                                            List<OuterCarton> RCVOuterCartonList = JsonConvert.DeserializeObject<List<OuterCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<OuterCarton> dataList = DaoManager.daoOuterCarton.Select(RCVOuterCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoOuterCarton.Update(RCVOuterCartonList[0], RCVOuterCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoOuterCarton.Insert(RCVOuterCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoOuterCarton.Delete(RCVOuterCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "InnerCarton":
+                                            List<InnerCarton> RCVInnerCartonList = JsonConvert.DeserializeObject<List<InnerCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<InnerCarton> dataList = DaoManager.daoInnerCarton.Select(RCVInnerCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoInnerCarton.Update(RCVInnerCartonList[0], RCVInnerCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoInnerCarton.Insert(RCVInnerCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoInnerCarton.Delete(RCVInnerCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "PrescanOuterCarton":
+                                            List<PrescanOuterCarton> RCVPrescanOuterCartonList = JsonConvert.DeserializeObject<List<PrescanOuterCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<PrescanOuterCarton> dataList = DaoManager.daoPrescanOuterCarton.Select(RCVPrescanOuterCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPrescanOuterCarton.Update(RCVPrescanOuterCartonList[0], RCVPrescanOuterCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPrescanOuterCarton.Insert(RCVPrescanOuterCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPrescanOuterCarton.Delete(RCVPrescanOuterCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "PrescanInnerCarton":
+                                            List<PrescanInnerCarton> RCVPrescanInnerCartonList = JsonConvert.DeserializeObject<List<PrescanInnerCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<PrescanInnerCarton> dataList = DaoManager.daoPrescanInnerCarton.Select(RCVPrescanInnerCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPrescanInnerCarton.Update(RCVPrescanInnerCartonList[0], RCVPrescanInnerCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPrescanInnerCarton.Insert(RCVPrescanInnerCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPrescanInnerCarton.Delete(RCVPrescanInnerCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "PackingMapping":
+                                            List<PackingMapping> RCVPackingMappingList = JsonConvert.DeserializeObject<List<PackingMapping>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<PackingMapping> dataList = DaoManager.daoPackingMapping.Select(RCVPackingMappingList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoPackingMapping.Update(RCVPackingMappingList[0], RCVPackingMappingList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoPackingMapping.Insert(RCVPackingMappingList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoPackingMapping.Delete(RCVPackingMappingList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ScannedPackingHeader":
+                                            List<ScannedPackingHeader> RCVScannedPackingHeaderList = JsonConvert.DeserializeObject<List<ScannedPackingHeader>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ScannedPackingHeader> dataList = DaoManager.daoScannedPackingHeader.Select(RCVScannedPackingHeaderList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoScannedPackingHeader.Update(RCVScannedPackingHeaderList[0], RCVScannedPackingHeaderList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoScannedPackingHeader.Insert(RCVScannedPackingHeaderList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoScannedPackingHeader.Delete(RCVScannedPackingHeaderList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ScannedPackingLine":
+                                            List<ScannedPackingLine> RCVScannedPackingLineList = JsonConvert.DeserializeObject<List<ScannedPackingLine>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ScannedPackingLine> dataList = DaoManager.daoScannedPackingLine.Select(RCVScannedPackingLineList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoScannedPackingLine.Update(RCVScannedPackingLineList[0], RCVScannedPackingLineList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoScannedPackingLine.Insert(RCVScannedPackingLineList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoScannedPackingLine.Delete(RCVScannedPackingLineList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ScannedPackingMapping":
+                                            List<ScannedPackingMapping> RCVScannedPackingMappingList = JsonConvert.DeserializeObject<List<ScannedPackingMapping>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ScannedPackingMapping> dataList = DaoManager.daoScannedPackingMapping.Select(RCVScannedPackingMappingList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoScannedPackingMapping.Update(RCVScannedPackingMappingList[0], RCVScannedPackingMappingList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoScannedPackingMapping.Insert(RCVScannedPackingMappingList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoScannedPackingMapping.Delete(RCVScannedPackingMappingList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ClosedPrescan":
+                                            List<ClosedPrescan> RCVClosedPrescanList = JsonConvert.DeserializeObject<List<ClosedPrescan>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ClosedPrescan> dataList = DaoManager.daoClosedPrescan.Select(RCVClosedPrescanList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoClosedPrescan.Update(RCVClosedPrescanList[0], RCVClosedPrescanList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoClosedPrescan.Insert(RCVClosedPrescanList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoClosedPrescan.Delete(RCVClosedPrescanList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ClosedPrescanOuterCarton":
+                                            List<ClosedPrescanOuterCarton> RCVClosedPrescanOuterCartonList = JsonConvert.DeserializeObject<List<ClosedPrescanOuterCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ClosedPrescanOuterCarton> dataList = DaoManager.daoClosedPrescanOuterCarton.Select(RCVClosedPrescanOuterCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoClosedPrescanOuterCarton.Update(RCVClosedPrescanOuterCartonList[0], RCVClosedPrescanOuterCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoClosedPrescanOuterCarton.Insert(RCVClosedPrescanOuterCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoClosedPrescanOuterCarton.Delete(RCVClosedPrescanOuterCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ClosedPrescanInnerCarton":
+                                            List<ClosedPrescanInnerCarton> RCVClosedPrescanInnerCartonList = JsonConvert.DeserializeObject<List<ClosedPrescanInnerCarton>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ClosedPrescanInnerCarton> dataList = DaoManager.daoClosedPrescanInnerCarton.Select(RCVClosedPrescanInnerCartonList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoClosedPrescanInnerCarton.Update(RCVClosedPrescanInnerCartonList[0], RCVClosedPrescanInnerCartonList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoClosedPrescanInnerCarton.Insert(RCVClosedPrescanInnerCartonList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoClosedPrescanInnerCarton.Delete(RCVClosedPrescanInnerCartonList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "Company":
+                                            List<Company> RCVCompanyList = JsonConvert.DeserializeObject<List<Company>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<Company> dataList = DaoManager.daoCompany.Select(RCVCompanyList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoCompany.Update(RCVCompanyList[0].Name, RCVCompanyList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoCompany.Insert(RCVCompanyList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoCompany.Delete(RCVCompanyList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "ODataSetup":
+                                            List<ODataSetup> RCVODataSetupList = JsonConvert.DeserializeObject<List<ODataSetup>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<ODataSetup> dataList = DaoManager.daoODataSetup.Select(RCVODataSetupList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoODataSetup.Update(RCVODataSetupList[0].PrimaryKey, RCVODataSetupList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoODataSetup.Insert(RCVODataSetupList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoODataSetup.Delete(RCVODataSetupList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        case "Setup":
+                                            List<Setup> RCVSetupList = JsonConvert.DeserializeObject<List<Setup>>(commuForm.Str.Remove(0, 1));
+                                            switch (commuForm.Action)
+                                            {
+                                                case "Select":
+                                                    List<Setup> dataList = DaoManager.daoSetup.Select(RCVSetupList.First());
+                                                    responseJson = SerializeToJson(dataList);
+                                                    break;
+                                                case "Update":
+                                                    effectedRows = DaoManager.daoSetup.Update(RCVSetupList[0], RCVSetupList[1]);
+                                                    break;
+                                                case "Insert":
+                                                    effectedRows = DaoManager.daoSetup.Insert(RCVSetupList.First());
+                                                    break;
+                                                case "Delete":
+                                                    effectedRows = DaoManager.daoSetup.Delete(RCVSetupList.First());
+                                                    break;
+                                                default:
+                                                    responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown", EffectedRows = 0 });
+                                                    break;
+                                            }
+                                            if (string.IsNullOrEmpty(responseJson))
+                                                responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+                                            break;
+                                        default:
+                                            responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown table: " + commuForm.Table });
+                                            break;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    responseJson = SerializeToJson(new { Code = -2, Msg = GetDbErrorMessage(ex) });
+                                }
+                            SendUnifiedResponse(socketClient, responseJson);
+                            break;
+
+
+
+                        case "Reset":
+                            switch (commuForm.Table)
+                            {
+                                case "Prescan":
+                                    Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+                                    String DocNo = prescan.DocumentNo;
+                                    int effectedPrescanOuterCartonRows = DaoManager.dao.Prescan_Reset(DocNo);
+                                    Console.WriteLine(effectedPrescanOuterCartonRows);
+                                    break;
+                            }
+                            break;
+                        case "Finish":
+                            switch (commuForm.Table)
+                            {
+                                case "Standrad Processing":
+                                    PackingMapping packingMapping = JsonConvert.DeserializeObject<PackingMapping>(commuForm.Str.Remove(0, 1));
+                                    int effectedInsertperscanRows = DaoManager.dao.FinishStandradProcessing(packingMapping.PackingNo, packingMapping.PrescanNo);
+
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+
+                        case "Connect":
+                            try
+                            {
+                                String value;
+                                if (dic2.TryGetValue(socketClient.RemoteEndPoint.ToString(), out value))
+                                {
+                                    dic2[socketClient.RemoteEndPoint.ToString()] = "Android";
+                                }
+                                else
+                                {
+                                    dic2[socketClient.RemoteEndPoint.ToString()] = "Android";
+                                    //dic2.Add(socketClient.RemoteEndPoint.ToString(), "Android");
+                                }
+                                commuForm = new CommuForm("Reply", "Connect", "Connect", "@OK");
+                                json = JsonConvert.SerializeObject(commuForm);
+                                //        sw.WriteLine(json2 + DELIMITER);
+                                object response = string.Empty;
+
+                                response = ResponseForm<object>.Success("Connect", json);
+                                SendUnifiedResponse(socketClient, (string)response);
+                                showmsg(json + "");
+                            }
+                            catch (KeyNotFoundException)
+                            {
+                                Console.WriteLine("Key = " + socketClient.RemoteEndPoint.ToString() + " is not found.");
+                            }
+                            break;
+
+                        default:
+                            commuForm.Command = "";
+                            commuForm.Action = "";
+                            commuForm.Table = "";
+                            commuForm.Str = "";
+                            showmsg(commuForm.Str + "");
+                            json = JsonConvert.SerializeObject(commuForm);
+                            SendUnifiedResponse(socketClient, json);
+                    break;
+                    case "New":
+                        switch (commuForm.Action)
+                        {
+                            case "Device":
+                                DaoManager.dao.InitSynchronize(commuForm.Str, DateTime.MinValue);
+                                break;
+                        }
+                        break;
+                    }
+
+                }
+            }
+            catch (SocketException _e)
+            {
+                showmsg("Disconnected: error code {0}! " + _e.NativeErrorCode);
+                showmsg("???? --> " + socketClient.RemoteEndPoint.ToString() + " ?????????\r\n");
+                RemoveListBox(socketClient.RemoteEndPoint.ToString());
+                //try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+                //try { socketClient.Close(); } catch { }
+            }
+            catch (Exception _e1)
+            {
+                showmsg("Disconnected: error code {0}! " + _e1.Message);
+                RemoveListBox(RemoteEndPointtxt);
+                //try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+                //try { socketClient.Close(); } catch { }
+            }
+            finally
+            {
+                RemoveListBox(RemoteEndPointtxt);
+                // ????
+                try { sr?.Close(); } catch { }
+                try { sw?.Close(); } catch { }
+                try { ns?.Close(); } catch { }
+                try { socketClient?.Close(); } catch { }
+
+                MsgTxt = null;
+            }
+        }
+        public List<T> Deserialize<T>(string path)
+        {
+            return JsonConvert.DeserializeObject<List<T>>(path);
+        }
+
+        public void RemoveListBox(string ip)
+        {
+            BeginInvoke(new Action(() =>
+            {
+                int index = IPlistBox.FindString(ip);
+                if (index >= 0 && index < IPlistBox.Items.Count)
+                {
+                    IPlistBox.Items.RemoveAt(index);
+                }
+                Socket removedSocket;
+                string removedType;
+                dic.TryRemove(ip, out removedSocket);
+                dic2.TryRemove(ip, out removedType);
+            }));
+        }
+
+        public void showmsg(string p)
+        {
+            BeginInvoke(new Action(() =>
+            {
+                richTextBox1.AppendText(p + "\r\n");
+            }));
+        }
+        public void updatemsg(string p)
+        {
+            BeginInvoke(new Action(() =>
+            {
+                richTextBox1.AppendText(p + "\r\n");
+            }));
+        }
+
+        private void Sendbtn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+
+            }
+            catch
+            {
+                MsgTextBox.Text = IPlistBox.SelectedItem.ToString();
+            }
+        }
+        //private CommuForm Deserialize(string json)
+        //{
+        //    //DataTable dt = new DataTable();
+        //    MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        //    DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(CommuForm));
+        //    return ser.ReadObject(ms) as CommuForm;
+        //}
+
+        //private String Serialize(object dt)
+        //{
+        //    MemoryStream ms = new MemoryStream();
+        //    DataContractJsonSerializer ser = new DataContractJsonSerializer(dt.GetType());
+        //    ser.WriteObject(ms, dt);
+        //    byte[] json = ms.ToArray();
+        //    return Encoding.UTF8.GetString(json);
+        //}
+        private byte[] GetKeepAliveSetting(int onOff, int keepAliveTime, int keepAliveInterval)
+        {
+            byte[] buffer = new byte[12];
+            BitConverter.GetBytes(onOff).CopyTo(buffer, 0);
+            BitConverter.GetBytes(keepAliveTime).CopyTo(buffer, 4);
+            BitConverter.GetBytes(keepAliveInterval).CopyTo(buffer, 8);
+            return buffer;
+        }
+
+        //public void SendMesageToConnectedAndroid(string msg, Socket socketClient, string action, string table)
+        //{
+        //    CommuForm commuForm = new CommuForm("Reply", action, table, "@" + msg);
+        //    string json3 = JsonConvert.SerializeObject(commuForm);
+
+        //    // ? dic2 ???????? Android ???
+        //    if (!IsNullOrEmpty2(dic2))
+        //    {
+        //        foreach (var x in dic2)
+        //        {
+        //            try
+        //            {
+        //                if ((x.Key != socketClient.RemoteEndPoint.ToString()) && (x.Value == "Android"))
+        //                {
+        //                    Socket socketClient2;
+        //                    if (dic.TryGetValue(x.Key, out socketClient2) && socketClient2 != null)
+        //                    {
+        //                        using (var ns2 = new NetworkStream(socketClient2, false))
+        //                        using (var sw2 = new StreamWriter(ns2, Encoding.BigEndianUnicode) { AutoFlush = true })
+        //                        {
+        //                            sw2.WriteLine(json3); // ? PC ???????? JSON
+        //                        }
+        //                        showmsg("Send to --> " + x.Key + ": All ?? " + json3);
+        //                        Thread.Sleep(200);
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // ????? socket ????? JSON
+        //                    using (var ns2 = new NetworkStream(socketClient, false))
+        //                    using (var sw2 = new StreamWriter(ns2, Encoding.BigEndianUnicode) { AutoFlush = true })
+        //                    {
+        //                        sw2.WriteLine(json3);
+        //                    }
+        //                }
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                showmsg("SendMesageToConnectedAndroid ????: " + ex.Message);
+        //            }
+        //        }
+        //    }
+        //}
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Dao dao = new Dao();
+            dao.SyncPackingList();
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            DatabaseSetup dbSetup = new DatabaseSetup();
+            dbSetup.ShowDialog();
+        }
+        public void getDBSetup(ref String _DataSource, ref String _InitialCatalog, ref String _UserID, ref String _Password)
+        {
+            _DataSource = DataSource;
+            _InitialCatalog = InitialCatalog;
+            _UserID = UserID;
+            _Password = Password;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            DatabaseAction dbAction = new DatabaseAction();
+            dbAction.ShowDialog();
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            ODataSetupPage oDataSetupPage = new ODataSetupPage();
+            oDataSetupPage.ShowDialog();
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void richTextBox1_TextChanged(object sender, EventArgs e)
+        {
+            richTextBox1.SelectionStart = richTextBox1.TextLength;
+            richTextBox1.ScrollToCaret();
+        }
+        public static bool IsNullOrEmpty2(ConcurrentDictionary<string, string> Dictionary)
+        {
+            return (Dictionary == null || Dictionary.Count < 1);
+        }
+
+        /// <summary>
+        /// ????? 4 ????? + BigEndianUnicode ??? JSON?????? PC/Android ????? JSON?
+        /// </summary>
+        /// <param name="socket">?? Socket</param>
+        /// <param name="data">?????????? JSON?</param>
+        private void SendUnifiedResponse(Socket socket, string data)
+        {
+            if (socket == null || !socket.Connected || string.IsNullOrEmpty(data)) return;
+
+            try
+            {
+                // 1. ? BigEndianUnicode ?????
+                byte[] dataBytes = Encoding.BigEndianUnicode.GetBytes(data);
+                // 2. ?? 4 ??????????
+                int dataSize = dataBytes.Length;
+                byte[] lengthBytes = BitConverter.GetBytes(dataSize);
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(lengthBytes); // ?????
+                }
+                // 3. ????????
+                //socket.Send(lengthBytes, 2, SocketFlags.None);
+                socket.Send(lengthBytes, 0,4, SocketFlags.None);
+                socket.Send(dataBytes,0, dataBytes.Length, SocketFlags.None);
+                Console.WriteLine($"SendUnifiedResponse DataSize={dataSize} Data={data}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"SendUnifiedResponse ErrorMessage:{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ??????? JSON?????????? ASCII ???
+        /// </summary>
+        /// <typeparam name="T">????</typeparam>
+        /// <param name="obj">???????</param>
+        /// <returns>JSON ??</returns>
+        /// <summary>Returns a user-friendly message for database-related exceptions (e.g. login failure).</summary>
+        private static string GetDbErrorMessage(Exception ex)
+        {
+            if (ex == null) return "Operation failed.";
+            var sqlEx = ex as SqlException;
+            if (sqlEx != null && ex.Message != null && ex.Message.IndexOf("Login failed", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "Database login failed. Please check WMS server database settings (DataSource, User, Password).";
+            return "Operation failed: " + ex.Message;
+        }
+
+        private string SerializeToJson<T>(T obj)
+        {
+            return JsonConvert.SerializeObject(obj, new JsonSerializerSettings()
+            {
+                StringEscapeHandling = StringEscapeHandling.EscapeNonAscii,
+                NullValueHandling = NullValueHandling.Ignore
+            });
+        }
+
+        /// <summary>
+        /// 从数据中取第一个对象（兼容单个对象/List集合/空对象）
+        /// </summary>
+        private object GetFirstItemFromData(object data, Type entityType)
+        {
+            // 处理空对象
+            if (data == null)
+            {
+                return Activator.CreateInstance(entityType); // 返回空实例（用于查询所有）
+            }
+
+            // 单个对象
+            if (data.GetType() == entityType)
+            {
+                return data;
+            }
+
+            // List集合
+            if (data is IList list && list.Count > 0)
+            {
+                return list[0];
+            }
+
+            // 默认返回空实例
+            return Activator.CreateInstance(entityType);
+        }
+
+        /// <summary>
+        /// 自动反序列化：兼容单个对象/List集合/空对象
+        /// </summary>
+        private object DeserializeAuto(Type entityType, string json)
+        {
+            try
+            {
+                // 处理空对象（{}）
+                if (json.Trim() == "{}")
+                {
+                    Console.WriteLine("反序列化：空对象（查询所有）");
+                    return Activator.CreateInstance(entityType);
+                }
+
+                // 尝试单个对象
+                object singleObj = JsonConvert.DeserializeObject(json, entityType);
+                if (singleObj != null)
+                {
+                    Console.WriteLine($"反序列化成功：单个{entityType.Name}对象");
+                    return singleObj;
+                }
+            }
+            catch
+            {
+                // 尝试List集合
+                Type listType = typeof(List<>).MakeGenericType(entityType);
+                object listObj = JsonConvert.DeserializeObject(json, listType);
+                if (listObj != null)
+                {
+                    Console.WriteLine($"反序列化成功：List<{entityType.Name}>集合");
+                    return listObj;
+                }
+            }
+            return null;
+        }
+
+    }
+}
+

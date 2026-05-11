@@ -1,0 +1,1434 @@
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using WMS.Database_Dao;
+using WMS.Models;
+using WMS.Page;
+
+namespace WMS
+{
+    internal class Form1Backup3_2026
+    {
+    }
+}
+//using ExtensionMethods;
+//using Newtonsoft.Json;
+//using System;
+//using System.Collections.Concurrent;
+//using System.Collections.Generic;
+//using System.ComponentModel;
+//using System.Data;
+//using System.Data.SqlClient;
+//using System.Data.SqlTypes;
+//using System.Diagnostics;
+//using System.Drawing;
+//using System.IO;
+//using System.Linq;
+//using System.Net;
+//using System.Net.Sockets;
+//using System.Runtime.InteropServices;
+//using System.Runtime.Serialization.Json;
+//using System.Text;
+//using System.Text.RegularExpressions;
+//using System.Threading;
+//using System.Threading.Tasks;
+//using System.Windows;
+//using System.Windows.Forms;
+//using System.Windows.Input;
+//using WMS.Database_Dao;
+//using WMS.Models;
+//using WMS.Page;
+//using WMS.ReceiveMessage;
+//namespace WMS
+//{
+//    public partial class Form1 : Form
+//    {
+//        Socket ServerSocket = null;
+//        // ?????Dictionary ? RemoteEndPoint ? key
+//        ConcurrentDictionary<string, Socket> dic = new ConcurrentDictionary<string, Socket>();
+//        ConcurrentDictionary<string, string> dic2 = new ConcurrentDictionary<string, string>();
+//        // ?? Thread.Abort??? CancellationTokenSource
+//        CancellationTokenSource cts;
+//        Thread thread;
+
+//        Boolean booStart = false;
+//        static String DataSource;
+//        static String InitialCatalog;
+//        static String UserID;
+//        static String Password;
+//        public static NAV.NAV nav;
+//        static Boolean timerStarted;
+//        TimersTimer timera = new TimersTimer();
+
+
+//        public Form1()
+//        {
+//            InitializeComponent();
+//            Patrolcar patrolcar = new Patrolcar();
+//            patrolcar.dgd_ini.getIni();
+//            StartStopBtn.Text = "Start";
+//            //IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
+//            //IPAddress ipAddress = host.AddressList[0];
+//            //foreach (var ip in host.AddressList)
+//            //{
+//            //    if (ip.AddressFamily == AddressFamily.InterNetwork)
+//            //    {
+//            //        Console.WriteLine("IP Address = " + ip.ToString());
+//            //    }
+//            //}
+//            if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+//            {
+//                Console.WriteLine("No Network Available");
+//            }
+
+//            ////   LoadIpAddressesToComboBox();++++++++++++++++++++++++++++++   ////
+//            //IPHostEntry host2 = Dns.GetHostEntry(Dns.GetHostName());
+
+//            //var ippaddress = host2
+//            //    .AddressList
+//            //    .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
+//            ////Console.WriteLine(ippaddress);
+
+//            //IPtextBox.Text = ippaddress.ToString();
+
+//            LoadIpAddressesToComboBox();
+//            ////   LoadIpAddressesToComboBox();++++++++++++++++++++++++++++++   ////
+
+//            // 注入連線設定供 DAO 層使用，避免 Dao_Connection 依賴 Form1
+//            DbConnectionConfig.Set(
+//                Properties.Settings.Default.DataSource ?? "",
+//                Properties.Settings.Default.InitialCatalog ?? "",
+//                Properties.Settings.Default.DBUserID ?? "",
+//                Properties.Settings.Default.DBPassword ?? "");
+//            // Load socket timeout settings into UI (defaults: 5 min receive, 1 min send)
+//            int recv = Properties.Settings.Default.SocketReceiveTimeoutMs;
+//            int send = Properties.Settings.Default.SocketSendTimeoutMs;
+//            if (recv >= 1000) nudReceiveTimeoutMs.Value = Math.Min(recv, (int)nudReceiveTimeoutMs.Maximum);
+//            if (send >= 1000) nudSendTimeoutMs.Value = Math.Min(send, (int)nudSendTimeoutMs.Maximum);
+//        }
+
+//        private void LoadIpAddressesToComboBox()
+//        {
+//            try
+//            {
+//                // ????????? IP ??
+//                comboBox1.Items.Clear();
+
+//                // ?????????? IP
+//                IPHostEntry host2 = Dns.GetHostEntry(Dns.GetHostName());
+
+//                // ?? IPv4?AddressFamily.InterNetwork ? IPv4?
+//                var ipv4Addresses = host2.AddressList
+//                    .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+//                    .ToList();
+
+//                // ???? IPv4 ??
+//                if (ipv4Addresses.Count == 0)
+//                {
+//                    comboBox1.Items.Add("??? IPv4 ??");
+//                }
+//                else
+//                {
+//                    // ??? IPv4 ?? comboBox1
+//                    foreach (var ip in ipv4Addresses)
+//                    {
+//                        comboBox1.Items.Add(ip.ToString());
+//                    }
+//                    // ?????? IP
+//                    comboBox1.SelectedIndex = 0;
+//                }
+//            }
+//            catch (Exception ex)
+//            {
+//                // ?? IP ????????
+//                comboBox1.Items.Clear();
+//                comboBox1.Items.Add($"???? IP?{ex.Message}");
+//                MessageBox.Show($"?????? IP ???{ex.Message}", "??",
+//                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+//            }
+//        }
+
+//        private void Startbtn_Click(object sender, EventArgs e)
+//        {
+//            if (!booStart)
+//            {
+//                try
+//                {
+//                    // Persist socket timeout settings for this and future runs
+//                    int recv = (int)nudReceiveTimeoutMs.Value;
+//                    int send = (int)nudSendTimeoutMs.Value;
+//                    if (recv >= 1000 && send >= 1000)
+//                    {
+//                        Properties.Settings.Default.SocketReceiveTimeoutMs = recv;
+//                        Properties.Settings.Default.SocketSendTimeoutMs = send;
+//                        Properties.Settings.Default.Save();
+//                    }
+//                    IPEndPoint IPE = new IPEndPoint(IPAddress.Parse(comboBox1.Text), Int32.Parse(ProttextBox.Text));
+//                    ServerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+//                    ServerSocket.Bind(IPE);
+//                    ServerSocket.Listen(10);
+//                    StartStopBtn.Text = "Stop";
+//                    booStart = true;
+//                    DataSource = Properties.Settings.Default.DataSource;
+//                    InitialCatalog = Properties.Settings.Default.InitialCatalog;
+//                    UserID = Properties.Settings.Default.DBUserID;
+//                    Password = Properties.Settings.Default.DBPassword;
+//                    DbConnectionConfig.Set(DataSource, InitialCatalog, UserID, Password);
+//                    showmsg("服務器已啓動，監聽中...");
+//                    Log log = new Log();
+//                    List<String> valueTitle = null;
+//                    List<String> value = null;
+//                    log.EventLog("Server Start", Environment.MachineName, valueTitle, value);
+//                    log = null;
+
+//                    // ?? CancellationTokenSource ??????????
+//                    cts = new CancellationTokenSource();
+//                    thread = new Thread(() => ListenClientConnect(cts.Token));
+//                    thread.IsBackground = true;
+//                    thread.Start();
+
+//                    if (!timerStarted)
+//                    {
+//                        timera.InitTimer();
+//                        timera.timer_Start();
+//                        timerStarted = true;
+//                    }
+//                }
+//                catch (Exception ex)
+//                {
+//                    showmsg("??????????: " + ex.Message);
+//                    booStart = false;
+//                }
+//            }
+//            else
+//            {
+//                // ??????? Thread.Abort()
+//                try
+//                {
+//                    booStart = false;
+//                    // ?????????? ServerSocket ??? Accept ???
+//                    cts?.Cancel();
+//                    try { ServerSocket?.Close(); } catch { }
+
+//                    // ??????????
+//                    if (thread != null && thread.IsAlive)
+//                    {
+//                        thread.Join(1000);
+//                    }
+
+//                    timera.timer_Stop();
+//                    StartStopBtn.Text = "Start";
+
+//                    DataSource = "";
+//                    InitialCatalog = "";
+//                    UserID = "";
+//                    Password = "";
+//                    showmsg("??????");
+//                    Log log = new Log();
+//                    List<String> valueTitle = null;
+//                    List<String> value = null;
+//                    log.EventLog("Server Stop", Environment.MachineName, valueTitle, value);
+//                    log = null;
+
+//                    // ???????
+//                    foreach (var kv in dic)
+//                    {
+//                        try
+//                        {
+//                            kv.Value.Shutdown(SocketShutdown.Both);
+//                            kv.Value.Close();
+//                        }
+//                        catch { }
+//                    }
+//                    dic.Clear();
+//                    dic2.Clear();
+//                    IPlistBox.Items.Clear();
+//                }
+//                catch (Exception ex)
+//                {
+//                    showmsg("??????????: " + ex.Message);
+//                }
+//            }
+//        }
+//        // ? ListenClientConnect ????? CancellationToken
+//        private void ListenClientConnect(object tokenObj)
+//        {
+//            var token = tokenObj as CancellationToken?;
+//            try
+//            {
+//                while (booStart && (token == null || !token.Value.IsCancellationRequested))
+//                {
+//                    Socket socketClient = null;
+//                    try
+//                    {
+//                        // Accept ?? ServerSocket.Close() ????????????
+//                        socketClient = ServerSocket.Accept();
+//                    }
+//                    catch (SocketException)
+//                    {
+//                        // ??? Close() ????????????
+//                        if (token != null && token.Value.IsCancellationRequested) break;
+//                        else throw;
+//                    }
+
+//                    if (socketClient == null) break;
+
+//                    try
+//                    {
+//                        int recvMs = Properties.Settings.Default.SocketReceiveTimeoutMs;
+//                        int sendMs = Properties.Settings.Default.SocketSendTimeoutMs;
+//                        if (recvMs < 1000) recvMs = 300000;
+//                        if (sendMs < 1000) sendMs = 60000;
+//                        socketClient.ReceiveTimeout = recvMs;
+//                        socketClient.SendTimeout = sendMs;
+//                        string RemoteIP = socketClient.RemoteEndPoint.ToString();
+//                        dic.TryAdd(RemoteIP, socketClient);
+//                        dic2.TryAdd(RemoteIP, "");
+//                        Invoke(new MethodInvoker(() => IPlistBox.Items.Add(RemoteIP)));
+//                        showmsg(RemoteIP + "???");
+
+//                        Thread.Sleep(200);
+//                        Thread recieveThread = new Thread(recievemsg);
+//                        recieveThread.IsBackground = true;
+//                        recieveThread.Start(socketClient);
+//                    }
+//                    catch (Exception exInner)
+//                    {
+//                        showmsg("??????????: " + exInner.Message);
+//                        try { socketClient?.Close(); } catch { }
+//                    }
+//                }
+//            }
+//            catch (Exception ex)
+//            {
+//                // ???????????
+//                showmsg("ListenClientConnect ????: " + ex.Message);
+//            }
+//        }
+//        private static String DELIMITER = "_$";
+//        public void recievemsg(object soc)
+//        {
+//            Socket socketClient = soc as Socket;
+//            if (socketClient == null) return;
+
+//            CommuForm commuForm = new CommuForm("", "", "", "");
+//            NetworkStream ns = null;
+//            StreamReader sr = null;
+//            StreamWriter sw = null;
+//            string RemoteEndPointtxt = socketClient.RemoteEndPoint.ToString();
+//            MessageText MsgTxt = new MessageText();
+
+//            DateTime dateTime = DateTime.Now;
+//            string json = "";
+//            string msg;
+//            String MACAddress = "";
+//            string tableName = "";
+
+//            try
+//            {
+//                ns = new NetworkStream(socketClient);
+//                sr = new StreamReader(ns, Encoding.BigEndianUnicode);
+//                sw = new StreamWriter(ns, Encoding.BigEndianUnicode) { AutoFlush = true };
+
+//                while (true)
+//                {
+//                    if (!booStart)
+//                    {
+//                        // ??????????
+//                        RemoveListBox(socketClient.RemoteEndPoint.ToString());
+//                        try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+//                        try { socketClient.Close(); } catch { }
+//                        break;
+//                    }
+
+//                    msg = null;
+//                    try
+//                    {
+//                        msg = sr.ReadLine();
+
+//                        if (string.IsNullOrEmpty(msg))
+//                        {
+//                            Thread.Sleep(200);
+//                            continue;
+//                        }
+//                        showmsg("[" + msg + "]");
+//                    }
+//                    catch (IOException)
+//                    {
+//                        // ????
+//                        showmsg("[Disconnect]");
+//                        msg = null;
+//                        break;
+//                    }
+
+//                    if (string.IsNullOrEmpty(msg))
+//                    {
+//                        continue;
+//                    }
+//                    else
+//                    {
+//                    }
+
+//                    // ?? JSON ?????
+//                    try
+//                    {
+//                        commuForm = JsonConvert.DeserializeObject<CommuForm>(msg);
+//                        showmsg(commuForm.Action);
+//                        showmsg(commuForm.Command);
+//                    }
+//                    catch (JsonException jex)
+//                    {
+//                        showmsg("Failed to parse the received message: " + jex.Message);
+//                        continue; // ???????
+//                    }
+
+//                    switch (commuForm.Command)
+//                    {
+//                        case "Open":
+//                            switch (commuForm.Action)
+//                            {
+//                                case "List":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "UserList":
+//                                            UserList userList = new UserList();
+//                                            userList.OpenUserList(socketClient, this);
+//                                            break;
+//                                        case "UserCard":
+//                                            User_Control userCardControl = new User_Control();
+//                                            userCardControl.OpenUserCard();
+//                                            break;
+//                                    }
+//                                    break;
+//                            }
+//                            break;
+//                        case "SQL":
+//                            string remoteIp = socketClient.RemoteEndPoint.ToString();
+//                            bool isAndroid = dic2.TryGetValue(remoteIp, out string cType) && cType == "Android";
+//                            if (!isAndroid)
+//                            {
+//                                int effectedRows = 0;
+//                                string responseJson = string.Empty;
+//                                if (string.IsNullOrEmpty(DbConnectionConfig.DataSource))
+//                                {
+//                                    responseJson = SerializeToJson(new { Code = -2, Msg = "Database not configured. Please configure and start the WMS server." });
+//                                    SendUnifiedResponse(socketClient, responseJson);
+//                                }
+//                                else
+//                                    switch (commuForm.Action)
+//                                    {
+//                                        case "Select":
+//                                            try
+//                                            {
+//                                                switch (commuForm.Table)
+//                                                {
+//                                                    case "User":
+//                                                        User user = JsonConvert.DeserializeObject<User>(commuForm.Str.Remove(0, 1));
+//                                                        List<User> userList = DaoManager.daoUser.Select(user);
+//                                                        responseJson = SerializeToJson(userList);
+//                                                        break;
+//                                                    case "Item":
+//                                                        Item item = JsonConvert.DeserializeObject<Item>(commuForm.Str.Remove(0, 1));
+//                                                        List<Item> itemList = DaoManager.daoItem.Select(item);
+//                                                        responseJson = SerializeToJson(itemList);
+//                                                        break;
+//                                                    case "CustomerGroup":
+//                                                        CustomerGroup customerGroup = JsonConvert.DeserializeObject<CustomerGroup>(commuForm.Str.Remove(0, 1));
+//                                                        List<CustomerGroup> customerGroupList = DaoManager.daoCustomerGroup.Select(customerGroup);
+//                                                        responseJson = SerializeToJson(customerGroupList);
+//                                                        break;
+//                                                    case "Printer":
+//                                                        Printer printer = JsonConvert.DeserializeObject<Printer>(commuForm.Str.Remove(0, 1));
+//                                                        List<Printer> printerList = DaoManager.daoPrinter.Select(printer);
+//                                                        responseJson = SerializeToJson(printerList);
+//                                                        break;
+//                                                    case "PackingHeader":
+//                                                        PackingHeader packingHeader = JsonConvert.DeserializeObject<PackingHeader>(commuForm.Str.Remove(0, 1));
+//                                                        List<PackingHeader> packingHeaderList = DaoManager.daoPackingHeader.Select(packingHeader);
+//                                                        responseJson = SerializeToJson(packingHeaderList);
+//                                                        break;
+//                                                    case "PackingLine":
+//                                                        PackingLine packingLine = JsonConvert.DeserializeObject<PackingLine>(commuForm.Str.Remove(0, 1));
+//                                                        List<PackingLine> packingLineList = DaoManager.daoPackingLine.Select(packingLine);
+//                                                        responseJson = SerializeToJson(packingLineList);
+//                                                        break;
+//                                                    case "Mapping":
+//                                                        Mapping mapping = JsonConvert.DeserializeObject<Mapping>(commuForm.Str.Remove(0, 1));
+//                                                        List<Mapping> mappingLine = DaoManager.daoMapping.Select(mapping);
+//                                                        responseJson = SerializeToJson(mappingLine);
+//                                                        break;
+//                                                    case "LabelHeader":
+//                                                        LabelHeader labelHeader = JsonConvert.DeserializeObject<LabelHeader>(commuForm.Str.Remove(0, 1));
+//                                                        List<LabelHeader> labelHeaderList = DaoManager.daoLabelHeader.Select(labelHeader);
+//                                                        responseJson = SerializeToJson(labelHeaderList);
+//                                                        break;
+//                                                    case "LabelLine":
+//                                                        LabelLine labelLine = JsonConvert.DeserializeObject<LabelLine>(commuForm.Str.Remove(0, 1));
+//                                                        List<LabelLine> labelLineList = DaoManager.daoLabelLine.Select(labelLine);
+//                                                        responseJson = SerializeToJson(labelLineList);
+//                                                        break;
+//                                                    case "ScanLabelString":
+//                                                        ScanLabelString scanLabelString = JsonConvert.DeserializeObject<ScanLabelString>(commuForm.Str.Remove(0, 1));
+//                                                        List<ScanLabelString> scanLabelStringList = DaoManager.daoScanLabelString.Select(scanLabelString);
+//                                                        responseJson = SerializeToJson(scanLabelStringList);
+//                                                        break;
+//                                                    case "Prescan":
+//                                                        Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                                        List<Prescan> prescanList = DaoManager.daoPrescan.Select(prescan);
+//                                                        responseJson = SerializeToJson(prescanList);
+//                                                        break;
+//                                                    case "OuterCarton":
+//                                                        OuterCarton outerCarton = JsonConvert.DeserializeObject<OuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<OuterCarton> outerCartonList = DaoManager.daoOuterCarton.Select(outerCarton);
+//                                                        responseJson = SerializeToJson(outerCartonList);
+//                                                        break;
+//                                                    case "InnerCarton":
+//                                                        InnerCarton innerCarton = JsonConvert.DeserializeObject<InnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<InnerCarton> innerCartonList = DaoManager.daoInnerCarton.Select(innerCarton);
+//                                                        responseJson = SerializeToJson(innerCartonList);
+//                                                        break;
+//                                                    case "PrescanOuterCarton":
+//                                                        PrescanOuterCarton prescanOuterCarton = JsonConvert.DeserializeObject<PrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<PrescanOuterCarton> prescanOuterCartonList = DaoManager.daoPrescanOuterCarton.Select(prescanOuterCarton);
+//                                                        responseJson = SerializeToJson(prescanOuterCartonList);
+//                                                        break;
+//                                                    case "PrescanInnerCarton":
+//                                                        PrescanInnerCarton prescaninnerCarton = JsonConvert.DeserializeObject<PrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<PrescanInnerCarton> prescaninnerCartonList = DaoManager.daoPrescanInnerCarton.Select(prescaninnerCarton);
+//                                                        responseJson = SerializeToJson(prescaninnerCartonList);
+//                                                        break;
+//                                                    case "PackingMapping":
+//                                                        PackingMapping packingMapping = JsonConvert.DeserializeObject<PackingMapping>(commuForm.Str.Remove(0, 1));
+//                                                        List<PackingMapping> packingMappingList = DaoManager.daoPackingMapping.Select(packingMapping);
+//                                                        responseJson = SerializeToJson(packingMappingList);
+//                                                        break;
+//                                                    case "ScannedPackingHeader":
+//                                                        ScannedPackingHeader scannedPackingHeader = JsonConvert.DeserializeObject<ScannedPackingHeader>(commuForm.Str.Remove(0, 1));
+//                                                        List<ScannedPackingHeader> scannedPackingHeaderList = DaoManager.daoScannedPackingHeader.Select(scannedPackingHeader);
+//                                                        responseJson = SerializeToJson(scannedPackingHeaderList);
+//                                                        break;
+//                                                    case "ScannedPackingLine":
+//                                                        ScannedPackingLine scannedPackingLine = JsonConvert.DeserializeObject<ScannedPackingLine>(commuForm.Str.Remove(0, 1));
+//                                                        List<ScannedPackingLine> scannedPackingLineList = DaoManager.daoScannedPackingLine.Select(scannedPackingLine);
+//                                                        responseJson = SerializeToJson(scannedPackingLineList);
+//                                                        break;
+//                                                    case "ScannedPackingMapping":
+//                                                        ScannedPackingMapping scannedPackingMapping = JsonConvert.DeserializeObject<ScannedPackingMapping>(commuForm.Str.Remove(0, 1));
+//                                                        List<ScannedPackingMapping> scannedPackingMappingList = DaoManager.daoScannedPackingMapping.Select(scannedPackingMapping);
+//                                                        responseJson = SerializeToJson(scannedPackingMappingList);
+//                                                        break;
+//                                                    case "ClosedPrescan":
+//                                                        ClosedPrescan closedPrescan = JsonConvert.DeserializeObject<ClosedPrescan>(commuForm.Str.Remove(0, 1));
+//                                                        List<ClosedPrescan> closedPrescanList = DaoManager.daoClosedPrescan.Select(closedPrescan);
+//                                                        responseJson = SerializeToJson(closedPrescanList);
+//                                                        break;
+//                                                    case "ClosedPrescanOuterCarton":
+//                                                        ClosedPrescanOuterCarton closedPrescanOuterCarton = JsonConvert.DeserializeObject<ClosedPrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<ClosedPrescanOuterCarton> closedPrescanOuterCartonList = DaoManager.daoClosedPrescanOuterCarton.Select(closedPrescanOuterCarton);
+//                                                        responseJson = SerializeToJson(closedPrescanOuterCartonList);
+//                                                        break;
+//                                                    case "ClosedPrescanInnerCarton":
+//                                                        ClosedPrescanInnerCarton closedPrescanInnerCarton = JsonConvert.DeserializeObject<ClosedPrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        List<ClosedPrescanInnerCarton> closedPrescanInnerCartonList = DaoManager.daoClosedPrescanInnerCarton.Select(closedPrescanInnerCarton);
+//                                                        responseJson = SerializeToJson(closedPrescanInnerCartonList);
+//                                                        break;
+//                                                    case "Company":
+//                                                        Company company = JsonConvert.DeserializeObject<Company>(commuForm.Str.Remove(0, 1));
+//                                                        List<Company> companies = DaoManager.daoCompany.Select(company);
+//                                                        responseJson = SerializeToJson(companies);
+//                                                        break;
+//                                                    case "ODataSetup":
+//                                                        ODataSetup oDataSetup = JsonConvert.DeserializeObject<ODataSetup>(commuForm.Str.Remove(0, 1));
+//                                                        List<ODataSetup> oDataSetups = DaoManager.daoODataSetup.Select();
+//                                                        responseJson = SerializeToJson(oDataSetups);
+//                                                        break;
+//                                                    case "Setup":
+//                                                        Setup setup = JsonConvert.DeserializeObject<Setup>(commuForm.Str.Remove(0, 1));
+//                                                        List<Setup> setups = DaoManager.daoSetup.Select(setup);
+//                                                        responseJson = SerializeToJson(setups);
+//                                                        break;
+//                                                    default:
+//                                                        responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown table: " + commuForm.Table });
+//                                                        break;
+//                                                }
+//                                            }
+//                                            catch (Exception ex)
+//                                            {
+//                                                responseJson = SerializeToJson(new { Code = -2, Msg = GetDbErrorMessage(ex) });
+//                                                Console.WriteLine($"Select?????{ex.ToString()}");
+//                                            }
+//                                            SendUnifiedResponse(socketClient, responseJson);
+//                                            break;
+//                                        case "Update":
+//                                            try
+//                                            {
+//                                                switch (commuForm.Table)
+//                                                {
+//                                                    case "User":
+//                                                        List<User> users = JsonConvert.DeserializeObject<List<User>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoUser.Update(users[0].UserID, users[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(users[1]), socketClient, "Update", "User");
+//                                                        break;
+//                                                    case "Item":
+//                                                        List<Item> items = JsonConvert.DeserializeObject<List<Item>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoItem.Update(items[0].No, items[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(items[1]), socketClient, "Update", "Item");
+//                                                        break;
+//                                                    case "CustomerGroup":
+//                                                        List<CustomerGroup> customerGroups = JsonConvert.DeserializeObject<List<CustomerGroup>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCustomerGroup.Update(customerGroups[0].Code, customerGroups[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(customerGroups[1]), socketClient, "Update", "CustomerGroup");
+//                                                        break;
+//                                                    case "Printer":
+//                                                        List<Printer> printers = JsonConvert.DeserializeObject<List<Printer>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrinter.Update(printers[0].Code, printers[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(printers[1]), socketClient, "Update", "Printer");
+//                                                        break;
+//                                                    case "Mapping":
+//                                                        List<Mapping> mappings = JsonConvert.DeserializeObject<List<Mapping>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoMapping.Update(mappings[0].No, mappings[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(mappings[1]), socketClient, "Update", "Mapping");
+//                                                        break;
+//                                                    case "LabelHeader":
+//                                                        List<LabelHeader> labelHeaders = JsonConvert.DeserializeObject<List<LabelHeader>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelHeader.Update(labelHeaders[0].Code, labelHeaders[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(labelHeaders[1]), socketClient, "Update", "LabelHeader");
+//                                                        break;
+//                                                    case "LabelLine":
+//                                                        List<LabelLine> labelLines = JsonConvert.DeserializeObject<List<LabelLine>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelLine.Update(labelLines[0].Code, labelLines[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(labelLines[1]), socketClient, "Update", "LabelLine");
+//                                                        break;
+//                                                    case "ScanLabelString":
+//                                                        List<ScanLabelString> scanLabelStrings = JsonConvert.DeserializeObject<List<ScanLabelString>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScanLabelString.Update(scanLabelStrings[0].EntryNo, scanLabelStrings[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(scanLabelStrings[1]), socketClient, "Update", "ScanLabelString");
+//                                                        break;
+//                                                    case "OuterCarton":
+//                                                        List<OuterCarton> outerCartons = JsonConvert.DeserializeObject<List<OuterCarton>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoOuterCarton.Update(outerCartons[0], outerCartons[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(outerCartons[1]), socketClient, "Update", "OuterCarton");
+//                                                        break;
+//                                                    case "InnerCarton":
+//                                                        List<InnerCarton> innerCartons = JsonConvert.DeserializeObject<List<InnerCarton>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoInnerCarton.Update(innerCartons[0], innerCartons[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(innerCartons[1]), socketClient, "Update", "InnerCarton");
+//                                                        break;
+//                                                    case "Prescan":
+//                                                        List<Prescan> prescans = JsonConvert.DeserializeObject<List<Prescan>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescan.Update(prescans[0], prescans[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescans[1]), socketClient, "Update", "Prescan");
+//                                                        break;
+//                                                    case "PrescanOuterCarton":
+//                                                        List<PrescanOuterCarton> prescanOuterCartons = JsonConvert.DeserializeObject<List<PrescanOuterCarton>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanOuterCarton.Update(prescanOuterCartons[0], prescanOuterCartons[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescanOuterCartons[1]), socketClient, "Update", "PrescanOuterCarton");
+//                                                        break;
+//                                                    case "PrescanInnerCarton":
+//                                                        List<PrescanInnerCarton> prescaninnerCartons = JsonConvert.DeserializeObject<List<PrescanInnerCarton>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanInnerCarton.Update(prescaninnerCartons[0], prescaninnerCartons[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescaninnerCartons[1]), socketClient, "Update", "PrescanInnerCarton");
+//                                                        break;
+//                                                    case "PackingMapping":
+//                                                        List<PackingMapping> packingMappings = JsonConvert.DeserializeObject<List<PackingMapping>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPackingMapping.Update(packingMappings[0], packingMappings[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(packingMappings), socketClient, "Update", "PackingMapping");
+//                                                        break;
+//                                                    case "Company":
+//                                                        List<Company> companies = JsonConvert.DeserializeObject<List<Company>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCompany.Update(companies[0].Name, companies[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(companies), socketClient, "Update", "Company");
+//                                                        break;
+//                                                    case "ODataSetup":
+//                                                        List<ODataSetup> oDataSetups = JsonConvert.DeserializeObject<List<ODataSetup>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoODataSetup.Update(oDataSetups[0].PrimaryKey, oDataSetups[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(oDataSetups), socketClient, "Update", "ODataSetup");
+//                                                        break;
+//                                                    case "Setup":
+//                                                        List<Setup> setups = JsonConvert.DeserializeObject<List<Setup>>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoSetup.Update(setups[0], setups[1]);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(setups), socketClient, "Update", "Setup");
+//                                                        break;
+//                                                    default:
+//                                                        responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown table: " + commuForm.Table, EffectedRows = 0 });
+//                                                        Console.WriteLine($"Update  Unknown table");
+//                                                        break;
+//                                                }
+//                                                if (string.IsNullOrEmpty(responseJson))
+//                                                {
+//                                                    responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+//                                                    Console.WriteLine($"Update  OK");
+
+//                                                }
+//                                            }
+//                                            catch (Exception ex)
+//                                            {
+//                                                responseJson = SerializeToJson(new { Code = -2, Msg = GetDbErrorMessage(ex), EffectedRows = 0 });
+//                                                Console.WriteLine($"Update?????{ex.ToString()}");
+//                                            }
+//                                            showmsg("1");
+//                                            SendUnifiedResponse(socketClient, responseJson);
+//                                            break;
+//                                        case "Insert":
+//                                            try
+//                                            {
+//                                                switch (commuForm.Table)
+//                                                {
+//                                                    case "User":
+//                                                        User user = JsonConvert.DeserializeObject<User>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoUser.Insert(user);
+//                                                        break;
+//                                                    case "CustomerGroup":
+//                                                        CustomerGroup customerGroup = JsonConvert.DeserializeObject<CustomerGroup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCustomerGroup.Insert(customerGroup);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(customerGroup), socketClient, "Insert", "CustomerGroup");
+//                                                        break;
+//                                                    case "Printer":
+//                                                        Printer printer = JsonConvert.DeserializeObject<Printer>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrinter.Insert(printer);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(printer), socketClient, "Insert", "Printer");
+//                                                        break;
+//                                                    case "Item":
+//                                                        Item item = JsonConvert.DeserializeObject<Item>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoItem.Update(item.No, item);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(item), socketClient, "Update", "Item");
+//                                                        break;
+//                                                    case "Mapping":
+//                                                        Mapping mapping = JsonConvert.DeserializeObject<Mapping>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoMapping.Insert(mapping);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(mapping), socketClient, "Insert", "Mapping");
+//                                                        break;
+//                                                    case "LabelHeader":
+//                                                        LabelHeader labelHeader = JsonConvert.DeserializeObject<LabelHeader>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelHeader.Insert(labelHeader);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(labelHeader), socketClient, "Insert", "LabelHeader");
+//                                                        break;
+//                                                    case "LabelLine":
+//                                                        LabelLine labelLine = JsonConvert.DeserializeObject<LabelLine>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelLine.Insert(labelLine);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(labelLine), socketClient, "Insert", "LabelLine");
+//                                                        break;
+//                                                    case "ScanLabelString":
+//                                                        ScanLabelString scanLabelString = JsonConvert.DeserializeObject<ScanLabelString>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScanLabelString.Insert(scanLabelString);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(scanLabelString), socketClient, "Insert", "ScanLabelString");
+//                                                        break;
+//                                                    case "OuterCarton":
+//                                                        OuterCarton outerCarton = JsonConvert.DeserializeObject<OuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoOuterCarton.Insert(outerCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(outerCarton), socketClient, "Insert", "OuterCarton");
+//                                                        break;
+//                                                    case "InnerCarton":
+//                                                        InnerCarton innerCarton = JsonConvert.DeserializeObject<InnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoInnerCarton.Insert(innerCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(innerCarton), socketClient, "Insert", "InnerCarton");
+//                                                        break;
+//                                                    case "Prescan":
+//                                                        Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescan.Insert(prescan);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescan), socketClient, "Insert", "Prescan");
+//                                                        break;
+//                                                    case "PrescanOuterCarton":
+//                                                        PrescanOuterCarton prescanOuterCarton = JsonConvert.DeserializeObject<PrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanOuterCarton.Insert(prescanOuterCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescanOuterCarton), socketClient, "Insert", "PrescanOuterCarton");
+//                                                        break;
+//                                                    case "PrescanInnerCarton":
+//                                                        PrescanInnerCarton prescanInnerCarton = JsonConvert.DeserializeObject<PrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanInnerCarton.Insert(prescanInnerCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(prescanInnerCarton), socketClient, "Insert", "PrescanInnerCarton");
+//                                                        break;
+//                                                    case "PackingMapping":
+//                                                        PackingMapping packingMapping = JsonConvert.DeserializeObject<PackingMapping>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPackingMapping.Insert(packingMapping);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(packingMapping), socketClient, "Insert", "PackingMapping");
+//                                                        break;
+//                                                    case "ScannedPackingHeader":
+//                                                        ScannedPackingHeader scannedPackingHeader = JsonConvert.DeserializeObject<ScannedPackingHeader>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScannedPackingHeader.Insert(scannedPackingHeader);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(scannedPackingHeader), socketClient, "Insert", "ScannedPackingHeader");
+//                                                        break;
+//                                                    case "ScannedPackingLine":
+//                                                        ScannedPackingLine scannedPackingLine = JsonConvert.DeserializeObject<ScannedPackingLine>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScannedPackingLine.Insert(scannedPackingLine);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(scannedPackingLine), socketClient, "Insert", "ScannedPackingLine");
+//                                                        break;
+//                                                    case "ScannedPackingMapping":
+//                                                        ScannedPackingMapping scannedPackingMapping = JsonConvert.DeserializeObject<ScannedPackingMapping>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScannedPackingMapping.Insert(scannedPackingMapping);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(scannedPackingMapping), socketClient, "Insert", "ScannedPackingMapping");
+//                                                        break;
+//                                                    case "ClosedPrescan":
+//                                                        ClosedPrescan closedPrescan = JsonConvert.DeserializeObject<ClosedPrescan>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoClosedPrescan.Insert(closedPrescan);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(closedPrescan), socketClient, "Insert", "ClosedPrescan");
+//                                                        break;
+//                                                    case "ClosedPrescanOuterCarton":
+//                                                        ClosedPrescanOuterCarton closedPrescanOuterCarton = JsonConvert.DeserializeObject<ClosedPrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoClosedPrescanOuterCarton.Insert(closedPrescanOuterCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(closedPrescanOuterCarton), socketClient, "Insert", "ClosedPrescanOuterCarton");
+//                                                        break;
+//                                                    case "ClosedPrescanInnerCarton":
+//                                                        ClosedPrescanInnerCarton closedPrescanInnerCarton = JsonConvert.DeserializeObject<ClosedPrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoClosedPrescanInnerCarton.Insert(closedPrescanInnerCarton);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(closedPrescanInnerCarton), socketClient, "Insert", "ClosedPrescanInnerCarton");
+//                                                        break;
+//                                                    case "Company":
+//                                                        Company company = JsonConvert.DeserializeObject<Company>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCompany.Insert(company);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(company), socketClient, "Insert", "Company");
+//                                                        break;
+//                                                    case "ODataSetup":
+//                                                        ODataSetup oDataSetup = JsonConvert.DeserializeObject<ODataSetup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoODataSetup.Insert(oDataSetup);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(oDataSetup), socketClient, "Insert", "ODataSetup");
+//                                                        break;
+//                                                    case "Setup":
+//                                                        Setup setup = JsonConvert.DeserializeObject<Setup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoSetup.Insert(setup);
+//                                                        SendMesageToConnectedAndroid(SerializeToJson(setup), socketClient, "Insert", "Setup");
+//                                                        break;
+//                                                    default:
+//                                                        responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown table: " + commuForm.Table, EffectedRows = 0 });
+//                                                        break;
+//                                                }
+//                                                if (string.IsNullOrEmpty(responseJson))
+//                                                    responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+//                                            }
+//                                            catch (Exception ex)
+//                                            {
+//                                                responseJson = SerializeToJson(new { Code = -2, Msg = GetDbErrorMessage(ex), EffectedRows = 0 });
+//                                                Console.WriteLine($"Insert?????{ex.ToString()}");
+//                                            }
+//                                            SendUnifiedResponse(socketClient, responseJson);
+//                                            break;
+//                                        case "Delete":
+//                                            try
+//                                            {
+//                                                switch (commuForm.Table)
+//                                                {
+//                                                    case "User":
+//                                                        User user = JsonConvert.DeserializeObject<User>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoUser.Delete(user);
+//                                                        break;
+//                                                    case "CustomerGroup":
+//                                                        CustomerGroup customerGroup = JsonConvert.DeserializeObject<CustomerGroup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCustomerGroup.Delete(customerGroup);
+//                                                        break;
+//                                                    case "Printer":
+//                                                        Printer printer = JsonConvert.DeserializeObject<Printer>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrinter.Delete(printer);
+//                                                        break;
+//                                                    case "Mapping":
+//                                                        Mapping mapping = JsonConvert.DeserializeObject<Mapping>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoMapping.Delete(mapping);
+//                                                        break;
+//                                                    case "LabelHeader":
+//                                                        LabelHeader labelHeader = JsonConvert.DeserializeObject<LabelHeader>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelHeader.Delete(labelHeader);
+//                                                        break;
+//                                                    case "LabelLine":
+//                                                        LabelLine labelLine = JsonConvert.DeserializeObject<LabelLine>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoLabelLine.Delete(labelLine);
+//                                                        break;
+//                                                    case "ScanLabelString":
+//                                                        ScanLabelString scanLabelString = JsonConvert.DeserializeObject<ScanLabelString>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoScanLabelString.Delete(scanLabelString);
+//                                                        break;
+//                                                    case "OuterCarton":
+//                                                        OuterCarton outerCarton = JsonConvert.DeserializeObject<OuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoOuterCarton.Delete(outerCarton);
+//                                                        break;
+//                                                    case "InnerCarton":
+//                                                        InnerCarton innerCarton = JsonConvert.DeserializeObject<InnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoInnerCarton.Delete(innerCarton);
+//                                                        break;
+//                                                    case "Prescan":
+//                                                        Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescan.Delete(prescan);
+//                                                        break;
+//                                                    case "PrescanOuterCarton":
+//                                                        PrescanOuterCarton prescanOuterCarton = JsonConvert.DeserializeObject<PrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanOuterCarton.DeletePrescanOuterCarton(prescanOuterCarton);
+//                                                        break;
+//                                                    case "PrescanInnerCarton":
+//                                                        PrescanInnerCarton prescanInnerCarton = JsonConvert.DeserializeObject<PrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPrescanInnerCarton.Delete(prescanInnerCarton);
+//                                                        break;
+//                                                    case "PackingMapping":
+//                                                        PackingMapping packingMapping = JsonConvert.DeserializeObject<PackingMapping>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoPackingMapping.Delete(packingMapping);
+//                                                        break;
+//                                                    case "Company":
+//                                                        Company company = JsonConvert.DeserializeObject<Company>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoCompany.Delete(company);
+//                                                        break;
+//                                                    case "ODataSetup":
+//                                                        ODataSetup oDataSetup = JsonConvert.DeserializeObject<ODataSetup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoODataSetup.Delete(oDataSetup);
+//                                                        break;
+//                                                    case "Setup":
+//                                                        Setup setup = JsonConvert.DeserializeObject<Setup>(commuForm.Str.Remove(0, 1));
+//                                                        effectedRows = DaoManager.daoSetup.Delete(setup);
+//                                                        break;
+//                                                    default:
+//                                                        responseJson = SerializeToJson(new { Code = -1, Msg = "Unknown table: " + commuForm.Table, EffectedRows = 0 });
+//                                                        break;
+//                                                }
+//                                                if (string.IsNullOrEmpty(responseJson))
+//                                                    responseJson = SerializeToJson(new { Code = 0, Msg = "OK", EffectedRows = effectedRows });
+//                                            }
+//                                            catch (Exception ex)
+//                                            {
+//                                                responseJson = SerializeToJson(new { Code = -2, Msg = GetDbErrorMessage(ex), EffectedRows = 0 });
+//                                                Console.WriteLine($"Delete?????{ex.ToString()}");
+//                                            }
+//                                            SendUnifiedResponse(socketClient, responseJson);
+//                                            break;
+//                                        default:
+//                                            break;
+//                                    }
+//                                break;
+//                            }
+//                            switch (commuForm.Action)
+//                            {
+//                                case "Insert":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "User":
+//                                            User newuser = new User();
+//                                            break;
+//                                        case "Prescan":
+
+//                                            Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                            int effectedInsertperscanRows = DaoManager.dao.Insertperscan(prescan);
+//                                            Console.WriteLine("Effected Rows : " + effectedInsertperscanRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescan, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "Prescan");
+//                                            break;
+//                                        case "ScanLabelString":
+//                                            ScanLabelString scanLabelString = JsonConvert.DeserializeObject<ScanLabelString>(commuForm.Str.Remove(0, 1));
+//                                            int effectedScanLabelStringRows = DaoManager.dao.InsertScanLabelString(scanLabelString);
+//                                            Console.WriteLine(effectedScanLabelStringRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(scanLabelString, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "ScanLabelString");
+//                                            break;
+//                                        case "OuterCarton":
+//                                            OuterCarton outerCarton = JsonConvert.DeserializeObject<OuterCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedOuterCartonRows = DaoManager.dao.InsertOuterCarton(outerCarton);
+//                                            Console.WriteLine(effectedOuterCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(outerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "OuterCarton");
+//                                            break;
+//                                        case "OuterCartonWithInnerCarton":
+//                                            InnerCarton OuterWithinnerCarton = JsonConvert.DeserializeObject<InnerCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedOuterWithinnerCartonRows = DaoManager.dao.InsertInnerCarton(OuterWithinnerCarton);
+//                                            Console.WriteLine(effectedOuterWithinnerCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(OuterWithinnerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "OuterCartonWithInnerCarton");
+//                                            break;
+//                                        case "InnerCarton":
+//                                            InnerCarton innerCarton = JsonConvert.DeserializeObject<InnerCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedInnerCartonRows = DaoManager.dao.InsertInnerCarton(innerCarton);
+//                                            Console.WriteLine(effectedInnerCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(innerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "InnerCarton");
+//                                            break;
+//                                        case "PrescanOuterCarton":
+//                                            PrescanOuterCarton prescanOuterCarton = JsonConvert.DeserializeObject<PrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedPrescanOuterCartonRows = DaoManager.dao.InsertPrescanOuterCarton(prescanOuterCarton);
+//                                            Console.WriteLine(effectedPrescanOuterCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescanOuterCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "PrescanOuterCarton");
+//                                            break;
+//                                        case "PrescanInnerCarton":
+//                                            PrescanInnerCarton prescanInnerCarton = JsonConvert.DeserializeObject<PrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedPrescanInnerCartonRows = DaoManager.dao.InsertPrescanInnerCarton(prescanInnerCarton);
+//                                            Console.WriteLine(effectedPrescanInnerCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescanInnerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "PrescanInnerCarton");
+//                                            break;
+//                                        //case "DirectPrint":
+//                                        //    DirectPrint directPrint = JsonConvert.DeserializeObject<DirectPrint>(commuForm.Str.Remove(0, 1));
+//                                        //    int effectedDirectPrintRows = dao.InsertDirectPrint(directPrint);
+//                                        //    Console.WriteLine(effectedDirectPrintRows);
+//                                        //    SendMesageToConnectedAndroid(JsonConvert.SerializeObject(directPrint, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "DirectPrint");
+//                                        //    break;
+//                                        //case "DirectPrintOuterCarton":
+//                                        //    DirectPrintOuterCarton directPrintOuterCarton = JsonConvert.DeserializeObject<DirectPrintOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                        //    int effectedDirectPrintOuterCartonRows = dao.InsertDirectPrintOuterCarton(directPrintOuterCarton);
+//                                        //    Console.WriteLine(effectedDirectPrintOuterCartonRows);
+//                                        //    SendMesageToConnectedAndroid(JsonConvert.SerializeObject(directPrintOuterCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "DirectPrintOuterCarton");
+//                                        //    break;
+//                                        //case "DirectPrintInnerCarton":
+//                                        //    DirectPrintInnerCarton directPrintInnerCarton = JsonConvert.DeserializeObject<DirectPrintInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                        //    int effectedDirectPrintInnerCartonRows = dao.InsertDirectPrintInnerCarton(directPrintInnerCarton);
+//                                        //    Console.WriteLine(effectedDirectPrintInnerCartonRows);
+//                                        //    SendMesageToConnectedAndroid(JsonConvert.SerializeObject(directPrintInnerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Insert", "DirectPrintInnerCarton");
+//                                        //    break;
+//                                        default:
+//                                            break;
+//                                    }
+//                                    break;
+//                                case "Delete":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "PrescanOuterCarton":
+//                                            PrescanOuterCarton prescanOuterCarton = JsonConvert.DeserializeObject<PrescanOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedPrescanOuterCartonRows = DaoManager.dao.deletePrescanOuterCarton(prescanOuterCarton.DocumentNo, prescanOuterCarton.LineNo);
+//                                            Console.WriteLine(effectedPrescanOuterCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescanOuterCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Delete", "PrescanOuterCarton");
+//                                            break;
+//                                        case "PrescanInnerCarton":
+//                                            PrescanInnerCarton prescanInnerCarton = JsonConvert.DeserializeObject<PrescanInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                            int effectedPrescanInnerCartonRows = DaoManager.dao.deletePrescanInnerCarton(prescanInnerCarton.DocumentNo, prescanInnerCarton.OuterCartonLineNo, prescanInnerCarton.LineNo);
+//                                            Console.WriteLine(effectedPrescanInnerCartonRows);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescanInnerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Delete", "PrescanInnerCarton");
+//                                            break;
+//                                        //case "DirectPrintOuterCarton":
+//                                        //    DirectPrintOuterCarton directPrintOuterCarton = JsonConvert.DeserializeObject<DirectPrintOuterCarton>(commuForm.Str.Remove(0, 1));
+//                                        //    int effectedDirectPrintOuterCartonRows = dao.deleteDirectPrintOuterCarton(directPrintOuterCarton.DocumentNo, directPrintOuterCarton.LineNo);
+//                                        //    Console.WriteLine(effectedDirectPrintOuterCartonRows);
+//                                        //    SendMesageToConnectedAndroid(JsonConvert.SerializeObject(directPrintOuterCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Delete", "DirectPrintOuterCarton");
+//                                        //    break;
+//                                        //case "DirectPrintInnerCarton":
+//                                        //    DirectPrintInnerCarton directPrintInnerCarton = JsonConvert.DeserializeObject<DirectPrintInnerCarton>(commuForm.Str.Remove(0, 1));
+//                                        //    int effectedDirectPrintInnerCartonRows = dao.deleteDirectPrintInnerCarton(directPrintInnerCarton.DocumentNo, directPrintInnerCarton.OuterCartonLineNo, directPrintInnerCarton.LineNo);
+//                                        //    Console.WriteLine(effectedDirectPrintInnerCartonRows);
+//                                        //    SendMesageToConnectedAndroid(JsonConvert.SerializeObject(directPrintInnerCarton, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Delete", "DirectPrintInnerCarton");
+//                                        //    break;
+//                                        default:
+//                                            break;
+//                                    }
+//                                    break;
+//                                case "Reset":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "Prescan":
+//                                            Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                            String DocNo = prescan.DocumentNo;
+//                                            int effectedPrescanOuterCartonRows = DaoManager.dao.Prescan_Reset(DocNo);
+//                                            Console.WriteLine(effectedPrescanOuterCartonRows);
+//                                            break;
+//                                    }
+//                                    break;
+//                                case "Select":
+//                                    MACAddress = commuForm.Str;
+//                                    Synchronize synchronize = new Synchronize();
+//                                    synchronize.MACAddress = MACAddress;
+//                                    //daoSynchronize.UpdateSynchronize(synchronize);
+//                                    //int dataQty = 0;
+//                                    var response = ResponseForm<object>.Success("ResponseForm", "");
+//                                    tableName = commuForm.Table;
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "User":
+//                                            User blankUser = new User();
+//                                            //dataList = ProcessList(DaoManager.daoUser.Select(blankUser));
+//                                            // 1. ? Table ???? DAO ??????? List<User>?List<Printer>?List<Item>?
+//                                            List<User> dataList2 = DaoManager.daoUser.Select(blankUser);
+//                                            // 2. ?? SplitSend ????????? JSON ??
+//                                            SplitSendHelper.SplitSend(sw, tableName, "Reply", "Insert", dataList2, DELIMITER);
+//                                            break;
+//                                        case "Item":
+//                                            //Item 
+//                                            Item blankItem = new Item();
+//                                            //dataList = ProcessList(DaoManager.daoItem.Select(blankItem));
+//                                            List<Item> ItemList2 = DaoManager.daoItem.Select(blankItem);
+//                                            SplitSendHelper.SplitSend(sw, tableName, "Reply", "Insert", ItemList2, DELIMITER);
+//                                            break;
+//                                        case "PackingHeader":
+//                                            PackingHeader blankPackingHeader = new PackingHeader();
+//                                            //dataList = ProcessList(DaoManager.daoPackingHeader.SelectPackingHeader(blankPackingHeader));
+//                                            List<PackingHeader> PackingHeaderList2 = DaoManager.daoPackingHeader.Select(blankPackingHeader);
+//                                            SplitSendHelper.SplitSend(sw, tableName, "Reply", "Insert", PackingHeaderList2, DELIMITER);
+//                                            break;
+//                                        case "CustomerGroup":
+//                                            //Customer Group 
+//                                            CustomerGroup blankCustomerGroup = new CustomerGroup();
+//                                            List<CustomerGroup> CustomerGroupList2 = DaoManager.daoCustomerGroup.Select(blankCustomerGroup);
+//                                            SplitSendHelper.SplitSend(sw, tableName, "Reply", "Insert", CustomerGroupList2, DELIMITER);
+//                                            break;
+//                                        case "Mapping":
+//                                            Mapping blankMapping = new Mapping();
+//                                            break;
+//                                        case "ScanLabelString":
+//                                            //Scan Label String
+//                                            ScanLabelString blankScanLabelString = new ScanLabelString();
+//                                            break;
+//                                        case "Prescan":
+//                                            //Prescan
+//                                            Prescan blankPrescan = new Prescan();
+//                                            break;
+//                                        case "OuterCarton":
+//                                            //Outer Carton
+//                                            OuterCarton blankOuterCarton = new OuterCarton();
+//                                            break;
+//                                        case "InnerCarton":
+//                                            //Inner Carton
+//                                            InnerCarton blankInnerCarton = new InnerCarton();
+//                                            break;
+//                                        //case "LabelHeader":
+//                                        //    //Label Header
+//                                        //    LabelHeader blankLabelHeader = new LabelHeader();
+//                                        //    break;
+//                                        //case "LabelLine":
+//                                        //    //Label Line
+//                                        //    LabelLine blankLabelLine = new LabelLine();
+//                                        //    break;
+//                                        case "PrescanOuterCarton":
+//                                            //Prescan Outer Carton
+//                                            PrescanOuterCarton blankPrescanOuterCarton = new PrescanOuterCarton();
+//                                            break;
+//                                        case "PrescanInnerCarton":
+//                                            //Prescan Inner Carton
+//                                            PrescanInnerCarton blankPrescanInnerCarton = new PrescanInnerCarton();
+//                                            break;
+//                                        case "PackingMapping":
+//                                            //Packing Mapping 
+//                                            PackingMapping blankPackingMapping = new PackingMapping();
+//                                            break;
+//                                        case "ClosedPrescan":
+//                                            //Closed Prescan
+//                                            ClosedPrescan blankClosedPrescan = new ClosedPrescan();
+//                                            break;
+//                                        case "ClosedPrescanOuterCarton":
+//                                            //Closed Prescan Outer Carton
+//                                            ClosedPrescanOuterCarton blankClosedPrescanOuterCarton = new ClosedPrescanOuterCarton();
+//                                            break;
+//                                        case "ClosedPrescanInnerCarton":
+//                                            //Closed Prescan Inner Carton
+//                                            ClosedPrescanInnerCarton blankClosedPrescanInnerCarton = new ClosedPrescanInnerCarton();
+//                                            break;
+//                                        case "Printer":
+//                                            //Printer 
+//                                            Printer blankPrinter = new Printer();
+//                                            break;
+//                                    }
+//                                    showmsg("Send " + tableName + " to-- > " + socketClient.RemoteEndPoint.ToString() + ": Done");
+//                                    break;
+//                                case "Update":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "Prescan":
+//                                            Prescan prescan = JsonConvert.DeserializeObject<Prescan>(commuForm.Str.Remove(0, 1));
+//                                            int effectedInsertperscanRows = DaoManager.dao.Updateperscan(prescan);
+//                                            SendMesageToConnectedAndroid(JsonConvert.SerializeObject(prescan, new JsonSerializerSettings() { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii }), socketClient, "Update", "Prescan");
+//                                            break;
+//                                        default:
+//                                            break;
+//                                    }
+//                                    break;
+//                                case "Finish":
+//                                    switch (commuForm.Table)
+//                                    {
+//                                        case "Standrad Processing":
+//                                            PackingMapping packingMapping = JsonConvert.DeserializeObject<PackingMapping>(commuForm.Str.Remove(0, 1));
+//                                            int effectedInsertperscanRows = DaoManager.dao.FinishStandradProcessing(packingMapping.PackingNo, packingMapping.PrescanNo);
+
+//                                            break;
+//                                        default:
+//                                            break;
+//                                    }
+//                                    break;
+
+//                                case "Connect":
+//                                    try
+//                                    {
+//                                        String value;
+//                                        if (dic2.TryGetValue(socketClient.RemoteEndPoint.ToString(), out value))
+//                                        {
+//                                            dic2[socketClient.RemoteEndPoint.ToString()] = "Android";
+//                                        }
+//                                        else
+//                                        {
+//                                            dic2[socketClient.RemoteEndPoint.ToString()] = "Android";
+//                                            //dic2.Add(socketClient.RemoteEndPoint.ToString(), "Android");
+//                                        }
+//                                        commuForm = new CommuForm("Reply", "Connect", "Connect", "@OK");
+//                                        json = JsonConvert.SerializeObject(commuForm);
+//                                        //        sw.WriteLine(json2 + DELIMITER);
+//                                        response = ResponseForm<object>.Success("Connect", json);
+//                                        sw.WriteLine(response);
+//                                        showmsg(json + "");
+//                                    }
+//                                    catch (KeyNotFoundException)
+//                                    {
+//                                        Console.WriteLine("Key = " + socketClient.RemoteEndPoint.ToString() + " is not found.");
+//                                    }
+//                                    break;
+
+//                                default:
+//                                    commuForm.Command = "";
+//                                    commuForm.Action = "";
+//                                    commuForm.Table = "";
+//                                    commuForm.Str = "";
+//                                    showmsg(commuForm.Str + "");
+//                                    json = JsonConvert.SerializeObject(commuForm);
+//                                    sw.WriteLine(json);
+//                                    break;
+//                            }
+
+//                            break;
+//                        case "New":
+//                            switch (commuForm.Action)
+//                            {
+//                                case "Device":
+//                                    DaoManager.dao.InitSynchronize(commuForm.Str, DateTime.MinValue);
+//                                    break;
+//                            }
+//                            break;
+//                    }
+
+//                }
+//            }
+//            catch (SocketException _e)
+//            {
+//                showmsg("Disconnected: error code {0}! " + _e.NativeErrorCode);
+//                showmsg("???? --> " + socketClient.RemoteEndPoint.ToString() + " ?????????\r\n");
+//                RemoveListBox(socketClient.RemoteEndPoint.ToString());
+//                //try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+//                //try { socketClient.Close(); } catch { }
+//            }
+//            catch (Exception _e1)
+//            {
+//                showmsg("Disconnected: error code {0}! " + _e1.Message);
+//                RemoveListBox(RemoteEndPointtxt);
+//                //try { socketClient.Shutdown(SocketShutdown.Both); } catch { }
+//                //try { socketClient.Close(); } catch { }
+//            }
+//            finally
+//            {
+//                RemoveListBox(RemoteEndPointtxt);
+//                // ????
+//                try { sr?.Close(); } catch { }
+//                try { sw?.Close(); } catch { }
+//                try { ns?.Close(); } catch { }
+//                try { socketClient?.Close(); } catch { }
+
+//                MsgTxt = null;
+//            }
+//        }
+//        public List<T> Deserialize<T>(string path)
+//        {
+//            return JsonConvert.DeserializeObject<List<T>>(path);
+//        }
+
+//        public void RemoveListBox(string ip)
+//        {
+//            BeginInvoke(new Action(() =>
+//            {
+//                int index = IPlistBox.FindString(ip);
+//                if (index >= 0 && index < IPlistBox.Items.Count)
+//                {
+//                    IPlistBox.Items.RemoveAt(index);
+//                }
+//                Socket removedSocket;
+//                string removedType;
+//                dic.TryRemove(ip, out removedSocket);
+//                dic2.TryRemove(ip, out removedType);
+//            }));
+//        }
+
+//        public void showmsg(string p)
+//        {
+//            BeginInvoke(new Action(() =>
+//            {
+//                richTextBox1.AppendText(p + "\r\n");
+//            }));
+//        }
+//        public void updatemsg(string p)
+//        {
+//            BeginInvoke(new Action(() =>
+//            {
+//                richTextBox1.AppendText(p + "\r\n");
+//            }));
+//        }
+
+//        private void Sendbtn_Click(object sender, EventArgs e)
+//        {
+//            try
+//            {
+
+//            }
+//            catch
+//            {
+//                MsgTextBox.Text = IPlistBox.SelectedItem.ToString();
+//            }
+//        }
+//        //private CommuForm Deserialize(string json)
+//        //{
+//        //    //DataTable dt = new DataTable();
+//        //    MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+//        //    DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(CommuForm));
+//        //    return ser.ReadObject(ms) as CommuForm;
+//        //}
+
+//        //private String Serialize(object dt)
+//        //{
+//        //    MemoryStream ms = new MemoryStream();
+//        //    DataContractJsonSerializer ser = new DataContractJsonSerializer(dt.GetType());
+//        //    ser.WriteObject(ms, dt);
+//        //    byte[] json = ms.ToArray();
+//        //    return Encoding.UTF8.GetString(json);
+//        //}
+//        private byte[] GetKeepAliveSetting(int onOff, int keepAliveTime, int keepAliveInterval)
+//        {
+//            byte[] buffer = new byte[12];
+//            BitConverter.GetBytes(onOff).CopyTo(buffer, 0);
+//            BitConverter.GetBytes(keepAliveTime).CopyTo(buffer, 4);
+//            BitConverter.GetBytes(keepAliveInterval).CopyTo(buffer, 8);
+//            return buffer;
+//        }
+
+//        public void SendMesageToConnectedAndroid(string msg, Socket socketClient, string action, string table)
+//        {
+//            CommuForm commuForm = new CommuForm("Reply", action, table, "@" + msg);
+//            string json3 = JsonConvert.SerializeObject(commuForm);
+
+//            // ? dic2 ???????? Android ???
+//            if (!IsNullOrEmpty2(dic2))
+//            {
+//                foreach (var x in dic2)
+//                {
+//                    try
+//                    {
+//                        if ((x.Key != socketClient.RemoteEndPoint.ToString()) && (x.Value == "Android"))
+//                        {
+//                            Socket socketClient2;
+//                            if (dic.TryGetValue(x.Key, out socketClient2) && socketClient2 != null)
+//                            {
+//                                using (var ns2 = new NetworkStream(socketClient2, false))
+//                                using (var sw2 = new StreamWriter(ns2, Encoding.BigEndianUnicode) { AutoFlush = true })
+//                                {
+//                                    sw2.WriteLine(json3); // ? PC ???????? JSON
+//                                }
+//                                showmsg("Send to --> " + x.Key + ": All ?? " + json3);
+//                                Thread.Sleep(200);
+//                            }
+//                        }
+//                        else
+//                        {
+//                            // ????? socket ????? JSON
+//                            using (var ns2 = new NetworkStream(socketClient, false))
+//                            using (var sw2 = new StreamWriter(ns2, Encoding.BigEndianUnicode) { AutoFlush = true })
+//                            {
+//                                sw2.WriteLine(json3);
+//                            }
+//                        }
+//                    }
+//                    catch (Exception ex)
+//                    {
+//                        showmsg("SendMesageToConnectedAndroid ????: " + ex.Message);
+//                    }
+//                }
+//            }
+//        }
+
+//        private void button1_Click(object sender, EventArgs e)
+//        {
+//            Dao dao = new Dao();
+//            dao.SyncPackingList();
+//        }
+
+//        private void button2_Click(object sender, EventArgs e)
+//        {
+//            DatabaseSetup dbSetup = new DatabaseSetup();
+//            dbSetup.ShowDialog();
+//        }
+//        public void getDBSetup(ref String _DataSource, ref String _InitialCatalog, ref String _UserID, ref String _Password)
+//        {
+//            _DataSource = DataSource;
+//            _InitialCatalog = InitialCatalog;
+//            _UserID = UserID;
+//            _Password = Password;
+//        }
+
+//        private void button3_Click(object sender, EventArgs e)
+//        {
+//            DatabaseAction dbAction = new DatabaseAction();
+//            dbAction.ShowDialog();
+//        }
+
+//        private void button4_Click(object sender, EventArgs e)
+//        {
+//            ODataSetupPage oDataSetupPage = new ODataSetupPage();
+//            oDataSetupPage.ShowDialog();
+//        }
+
+//        private void button5_Click(object sender, EventArgs e)
+//        {
+
+//        }
+
+//        private void richTextBox1_TextChanged(object sender, EventArgs e)
+//        {
+//            richTextBox1.SelectionStart = richTextBox1.TextLength;
+//            richTextBox1.ScrollToCaret();
+//        }
+//        public static bool IsNullOrEmpty2(ConcurrentDictionary<string, string> Dictionary)
+//        {
+//            return (Dictionary == null || Dictionary.Count < 1);
+//        }
+
+//        /// <summary>
+//        /// ????? 4 ????? + BigEndianUnicode ??? JSON?????? PC/Android ????? JSON?
+//        /// </summary>
+//        /// <param name="socket">?? Socket</param>
+//        /// <param name="data">?????????? JSON?</param>
+//        private void SendUnifiedResponse(Socket socket, string data)
+//        {
+//            if (socket == null || !socket.Connected || string.IsNullOrEmpty(data)) return;
+
+//            try
+//            {
+//                // 1. ? BigEndianUnicode ?????
+//                byte[] dataBytes = Encoding.BigEndianUnicode.GetBytes(data);
+//                // 2. ?? 4 ??????????
+//                int dataSize = dataBytes.Length;
+//                byte[] lengthBytes = BitConverter.GetBytes(dataSize);
+//                if (BitConverter.IsLittleEndian)
+//                {
+//                    Array.Reverse(lengthBytes); // ?????
+//                }
+//                // 3. ????????
+//                socket.Send(lengthBytes, 4, SocketFlags.None);
+//                socket.Send(dataBytes, dataBytes.Length, SocketFlags.None);
+//                Console.WriteLine($"SendUnifiedResponse DataSize={dataSize} Data={data}");
+//            }
+//            catch (Exception ex)
+//            {
+//                Console.WriteLine($"SendUnifiedResponse ErrorMessage:{ex.Message}");
+//            }
+//        }
+
+//        /// <summary>
+//        /// ??????? JSON?????????? ASCII ???
+//        /// </summary>
+//        /// <typeparam name="T">????</typeparam>
+//        /// <param name="obj">???????</param>
+//        /// <returns>JSON ??</returns>
+//        /// <summary>Returns a user-friendly message for database-related exceptions (e.g. login failure).</summary>
+//        private static string GetDbErrorMessage(Exception ex)
+//        {
+//            if (ex == null) return "Operation failed.";
+//            var sqlEx = ex as SqlException;
+//            if (sqlEx != null && ex.Message != null && ex.Message.IndexOf("Login failed", StringComparison.OrdinalIgnoreCase) >= 0)
+//                return "Database login failed. Please check WMS server database settings (DataSource, User, Password).";
+//            return "Operation failed: " + ex.Message;
+//        }
+
+//        private string SerializeToJson<T>(T obj)
+//        {
+//            return JsonConvert.SerializeObject(obj, new JsonSerializerSettings()
+//            {
+//                StringEscapeHandling = StringEscapeHandling.EscapeNonAscii,
+//                NullValueHandling = NullValueHandling.Ignore
+//            });
+//        }
+
+//    }
+//}
