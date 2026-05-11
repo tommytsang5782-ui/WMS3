@@ -75,7 +75,7 @@ namespace WMS
             tw.Close();
         }
         public void ChangeLog(string title, string user, List<string> ValueTitle, List<string> beforeValue, List<string> afterValue)
-        {//123
+        {
             SetupLog();
             TextWriter tw = new StreamWriter(docpath, true);
             tw.WriteLine("<Events>");
