@@ -1,0 +1,1215 @@
+package com.example.android.wms.Socket
+
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
+import android.os.Binder
+import android.os.IBinder
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import com.example.android.wms.Database.*
+import com.example.android.wms.R
+import com.example.android.wms.Socket.client.NettyTcpClient
+import com.example.android.wms.Socket.client.constant.ConnectState
+import com.example.android.wms.Socket.client.listener.NettyClientListener
+import com.example.android.wms.Socket.client.table.*
+import com.example.android.wms.Socket.ui.domain.MessageBean
+import io.netty.buffer.ByteBuf
+import io.netty.buffer.Unpooled
+import io.netty.util.CharsetUtil
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.StringWriter
+import java.net.NetworkInterface
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.*
+import android.util.JsonWriter
+import android.widget.ProgressBar
+import android.widget.TextView
+import com.example.android.wms.WMSApplication
+import kotlinx.coroutines.*
+import kotlin.concurrent.thread
+
+
+class NettyClient : Service(), NettyClientListener<String> {
+
+    lateinit var mNettyTcpClient: NettyTcpClient
+    val TAG = "NettyClient"
+    private lateinit var ip: String
+    private  var port: Int = 0
+    private val REQUEST_CODE_CONFIG:Int = 1000
+    private val mBinder = MyBinder()
+    private val applicationScope = CoroutineScope(SupervisorJob())
+
+    public lateinit var sharedPrefs : SharedPreferences
+
+    private var receivedmsg: String = ""
+    public var receivedMsgBuf : ByteBuf = Unpooled.buffer(10485760)
+    val dataList: MutableList<MessageBean> = mutableListOf()
+
+    fun getStringPref(sharedPrefs: SharedPreferences, key: String, defaultValue: String = ""): String {
+        return sharedPrefs.getString(key, defaultValue) ?: defaultValue
+    }
+
+    fun getIntPref(sharedPrefs: SharedPreferences, key: String, defaultValue: Int = 0): Int {
+        return sharedPrefs.getString(key, defaultValue.toString())?.toInt() ?: defaultValue
+    }
+    fun setupNettyClient(ip: String, port: Int, isHeartBeat: Boolean, commuForm: CommuForm): NettyTcpClient {
+        return NettyTcpClient.Builder()
+                .setHost(ip)                    //设置服务端地址
+                .setTcpPort(port)       //设置服务端端口号
+                .setMaxReconnectTimes(5000)     //设置最大重连次数
+                .setReconnectIntervalTime(30000)//设置重连间隔时间。单位：秒
+                .setSendheartBeat(isHeartBeat)         //设置发送心跳
+                .setHeartBeatInterval(30)       //设置心跳间隔时间。单位：秒
+                .setHeartBeatData(Json.encodeToString(commuForm)) //设置心跳数据，可以是String类型，也可以是byte[]，以后设置的为准
+                .setIndex(0)                    //设置客户端标识.(因为可能存在多个tcp连接)
+                .build()
+    }
+    fun init(isheartBeat: Boolean) {
+        Log.d(TAG, " init")
+
+        pSharedPrefs = sharedPrefs
+        ip = getStringPref(sharedPrefs, "IP")
+        port = getIntPref(sharedPrefs, "PORT")
+        FirstConnect = !sharedPrefs.contains("FirstConnect")
+
+        var commuForm = CommuForm("SQL", "Select", "ALL", getMacAddr())
+        pNettyTcpClient = setupNettyClient(ip, port, isheartBeat, commuForm)
+        pNettyTcpClient.setListener(this)  //设置TCP监听
+
+
+        GlobalScope.launch(Dispatchers.IO) {
+            if (!pNettyTcpClient.connectStatus) {
+                pNettyTcpClient.connect()
+                delay(1000)
+                Nettyconnected = pNettyTcpClient.connectStatus
+                Log.d(TAG, " 已連接")
+            } else {
+                pNettyTcpClient.disconnect()
+                Nettyconnected = false
+                Log.d(TAG, " 已中斷連接")
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "onCreate() executed")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand() executed")
+        // 執行任務
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    override fun onDestroy() {
+        try {
+            //mNettyTcpClient.disconnect();2
+            pNettyTcpClient.disconnect();
+        }
+        catch (e: Exception)
+        {
+
+        }
+        Log.d(TAG, "onDestroy() executed")
+        super.onDestroy()
+    }
+
+    override fun onBind(p0: Intent?): IBinder? {
+        return mBinder;
+    }
+
+    override fun onMessageResponseClient(msg: String, index: Int) {
+        if (msg != "")
+        receivedMsgBuf2.writeBytes(Unpooled.copiedBuffer(msg, CharsetUtil.UTF_8))
+    }
+
+    override fun onClientStatusConnectChanged(statusCode: Int, index: Int) {
+        if (statusCode == ConnectState.STATUS_CONNECT_SUCCESS) {
+            Log.d(TAG, "STATUS_CONNECT_SUCCESS:")
+        } else {
+            Log.d(TAG, "onServiceStatusConnectChanged:$statusCode")
+        }
+    }
+
+
+
+    private fun msgReceive(message: String) {
+        //val messageBean = MessageBean(System.currentTimeMillis(), message)
+        //dataList.add(0, messageBean)
+        Log.d(TAG, "onServiceStatusConnectChanged:$message")
+    }
+
+    internal class MyBinder : Binder() {
+        fun startDownload() {
+            Log.d("TAG", "startDownload() executed")
+            // 執行任務
+        }
+    }
+
+    fun getMacAddr(): String {
+        try {
+            val all: List<NetworkInterface> =
+                Collections.list(NetworkInterface.getNetworkInterfaces())
+            for (nif: NetworkInterface in all) {
+                if (!nif.getName().equals("wlan0")) continue
+                val macBytes: ByteArray = nif.getHardwareAddress() ?: return ""
+                val res1 = StringBuilder()
+                for (b in macBytes) {
+                    res1.append(String.format("%02X:", b))
+                }
+                if (res1.length > 0) {
+                    res1.deleteCharAt(res1.length - 1)
+                }
+                return res1.toString()
+            }
+        } catch (ex: Exception) {
+        }
+        return "02:00:00:00:00:00"
+    }
+    //Android 6.0以下 或模擬器適用
+    fun getMac(context: Context): String {
+        val manager : WifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val info : WifiInfo = manager.connectionInfo
+        return manager.getConnectionInfo().getMacAddress()
+    }
+    fun waitmsg()
+    {
+        msgDone = false
+    }
+    fun iswaiting():Boolean
+    {
+        return msgDone
+    }
+    companion object {
+
+        var msgDone: Boolean = false
+        public var receivedMsgBuf2 : ByteBuf = Unpooled.buffer(20*1024*1024)
+        public var datasize: Int = 4096
+        public var receivedmsg = ""
+        public var FirstConnect = false
+        public var NettyState = false
+        public var Nettyconnected = false
+        var UpdateFinish = false
+        public lateinit var pNettyTcpClient : NettyTcpClient
+        public lateinit var pSharedPrefs:SharedPreferences
+        private val applicationScope = CoroutineScope(SupervisorJob())
+        public var textView200txt = ""
+        public var progressBar2Counter = 0
+        public var progressBar2Total = 0
+        public var progressBar1Total = 0
+        public var progressBar1Counter = 0
+
+        fun msgReceived() {
+
+            // 读取并解析消息列表
+            val msgList = NettyUtil.readMsgList(receivedMsgBuf2)
+            if (msgList.isEmpty()) return
+
+            // 遍历处理每条消息
+            msgList.forEach { msgStr ->
+                // 过滤无效消息
+                if (msgStr.length <= 46) return@forEach
+
+                try {
+                    // 解析CommuForm
+                    val commuForm = NettyUtil.fromJson<CommuForm>(msgStr)
+                    Log.i("commuForm", "Table: ${commuForm.Table}, Action: ${commuForm.Action}")
+
+                    // 处理核心业务逻辑
+                    handleCommuForm(commuForm)
+                } catch (e: Exception) {
+                    // 打印异常日志，便于排查问题
+                    Log.e("NettyMsgHandler", "解析或处理消息失败: ${msgStr}", e)
+                }
+            }
+
+            var i = 0
+            val dao = WMSDatabase.getInstance(WMSApplication.appContext, applicationScope).Dao()
+            val repository = NettyRepository(dao)
+            val factory = NettyViewModel(repository)
+            val NettyViewModel: NettyViewModel = factory
+            if  (receivedMsgBuf2.isReadable){
+                try {
+                    val bytes: ByteArray = ByteArray(receivedMsgBuf2.writerIndex())
+                    while (receivedMsgBuf2.readerIndex() < receivedMsgBuf2.writerIndex()) {
+                        val getBytes =
+                                receivedMsgBuf2.getBytes(receivedMsgBuf2.readerIndex(), bytes, 0, datasize)
+                                        .toString(CharsetUtil.UTF_8)
+                        val getByteslist = getBytes.split("\n")
+                        while (getByteslist.size > i) {
+                            val msgstr: String = getByteslist[i]
+                            i += 1
+                            if (msgstr.length > 46) {
+                                val commuForm = Json.decodeFromString<CommuForm>(msgstr)
+                                Log.i("commuForm", commuForm.Table)
+                                if (commuForm.Table == "Count") {
+                                    progressBar1Total = commuForm.Str.removeRange(0, 1).toInt()
+                                    pSharedPrefs.edit()
+                                            .putString("progressBar1Total", commuForm.Str.removeRange(0, 1))
+                                            .apply()
+                                }
+                                if (commuForm.Table == "MsgDone") {
+                                    msgDone = true
+                                    Log.i("commuForm MsgDone", "MsgDone")
+                                }
+                                if (commuForm.Table == "User") {
+                                    textView200txt = "User"
+                                    var msgtxt = commuForm.Str
+                                    if (msgtxt.startsWith("@")) msgtxt = msgtxt.removeRange(0, 1)
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializableuserList = Json.decodeFromString<List<User_Serializable>>(msgtxt)
+                                            val userA = createUser(SerializableuserList[0])
+                                            val userB = createUser(SerializableuserList[1])
+
+                                            if (userA.UserID == userB.UserID) {
+                                                NettyViewModel.updateUser(userB)
+                                            } else {
+                                                NettyViewModel.deleteUser(userA.UserID)
+                                                NettyViewModel.insertUser(userB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val Serializableuser = Json.decodeFromString<User_Serializable>(commuForm.Str.removeRange(0, 1))
+                                            Log.i("UserID", Serializableuser.UserID)
+                                            val user = createUser(Serializableuser)
+                                            NettyViewModel.insertUser(user)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val Serializableuser = Json.decodeFromString<User_Serializable>(commuForm.Str.removeRange(0, 1))
+                                            val user = createUser(Serializableuser)
+                                            NettyViewModel.deleteUser(user.UserID)
+                                        }
+                                        "Insert_Count" -> {
+                                            progressBar2Total = commuForm.Str.removeRange(0, 1).toInt()
+                                        }
+                                    }
+                                }
+                                if (commuForm.Table == "Packing Header") {
+                                    textView200txt = "Packing Header"
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePHList = Json.decodeFromString<List<PackingHeader_Serializable>>(commuForm.Str.removeRange(0, 1))
+                                            val packingHeaderA = createPackingHeader(SerializablePHList[0])
+                                            val packingHeaderB = createPackingHeader(SerializablePHList[1])
+
+                                            if (packingHeaderA.No == packingHeaderB.No) {
+                                                NettyViewModel.updatePH(packingHeaderB)
+                                            } else {
+                                                NettyViewModel.deletePackingHeader(packingHeaderA.No)
+                                                NettyViewModel.insertPH(packingHeaderB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePH = Json.decodeFromString<PackingHeader_Serializable>(commuForm.Str.removeRange(0, 1))
+                                            val packingHeader = createPackingHeader(SerializablePH)
+                                            NettyViewModel.insertPH(packingHeader)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePH = Json.decodeFromString<PackingHeader_Serializable>(commuForm.Str.removeRange(0, 1))
+                                            val packingHeader = createPackingHeader(SerializablePH)
+                                            NettyViewModel.deletePackingHeader(packingHeader.No)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+                                if (commuForm.Table == "Packing Line") {
+                                    textView200txt = "Packing Line"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePLList = json1.decodeFromString<List<PackingLine_Serializable>>(msgtxt)
+                                            val packingLineA = createPackingLine(SerializablePLList[0])
+                                            val packingLineB = createPackingLine(SerializablePLList[1])
+
+                                            if (packingLineA.DocumentNo == packingLineB.DocumentNo && packingLineA.LineNo == packingLineB.LineNo) {
+                                                NettyViewModel.updatePL(packingLineB)
+                                            } else {
+                                                NettyViewModel.deletePackingLine(packingLineA.DocumentNo, packingLineA.LineNo)
+                                                NettyViewModel.insertPL(packingLineB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePL = json1.decodeFromString<PackingLine_Serializable>(msgtxt)
+                                            val packingLine = createPackingLine(SerializablePL)
+                                            NettyViewModel.insertPL(packingLine)
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePL = json1.decodeFromString<PackingLine_Serializable>(msgtxt)
+                                            val packingLine = createPackingLine(SerializablePL)
+                                            NettyViewModel.deletePackingLine(packingLine.DocumentNo, packingLine.LineNo)
+                                        }
+                                    }
+                                }
+                                if (commuForm.Table == "Mapping") {
+                                    textView200txt = "Mapping"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializableMappingList = json1.decodeFromString<List<Mapping_Serializable>>(msgtxt)
+                                            val mappingA = createMapping(SerializableMappingList[0])
+                                            val mappingB = createMapping(SerializableMappingList[1])
+
+                                            if (mappingA.No == mappingB.No) {
+                                                NettyViewModel.updateMapping(mappingB)
+                                            } else {
+                                                NettyViewModel.deleteMapping(mappingA.No)
+                                                NettyViewModel.insertMapping(mappingB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializableMapping = json1.decodeFromString<Mapping_Serializable>(msgtxt)
+                                            val mapping = createMapping(SerializableMapping)
+                                            NettyViewModel.insertMapping(mapping)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializableMapping = json1.decodeFromString<Mapping_Serializable>(msgtxt)
+                                            val mapping = createMapping(SerializableMapping)
+                                            NettyViewModel.deleteMapping(mapping.No)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+                                if (commuForm.Table == "Scan Label String") {
+                                    textView200txt = "Scan Label String"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializableScanLabelStringList = json1.decodeFromString<List<ScanLabelString_Serializable>>(msgtxt)
+                                            val scanLabelStringA = createScanLabelString(SerializableScanLabelStringList[0])
+                                            val scanLabelStringB = createScanLabelString(SerializableScanLabelStringList[1])
+
+                                            if (scanLabelStringA.EntryNo == scanLabelStringB.EntryNo) {
+                                                NettyViewModel.updateScanLabelString(scanLabelStringB)
+                                            } else {
+                                                NettyViewModel.deleteScanLabelString(scanLabelStringA.EntryNo)
+                                                NettyViewModel.insertLabelData(scanLabelStringB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializableScanLabelString = json1.decodeFromString<ScanLabelString_Serializable>(msgtxt)
+                                            val scanLabelString = createScanLabelString(SerializableScanLabelString)
+                                            NettyViewModel.insertLabelData(scanLabelString)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializableScanLabelString = json1.decodeFromString<ScanLabelString_Serializable>(msgtxt)
+                                            val scanLabelString = createScanLabelString(SerializableScanLabelString)
+                                            NettyViewModel.deleteScanLabelString(scanLabelString.EntryNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+                                if (commuForm.Table == "Prescan") {
+                                    textView200txt = "Prescan"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePrescanList = json1.decodeFromString<List<Prescan_Serializable>>(msgtxt)
+                                            val prescanA = createPrescan(SerializablePrescanList[0])
+                                            val prescanB = createPrescan(SerializablePrescanList[1])
+
+                                            if (prescanA.DocumentNo == prescanB.DocumentNo) {
+                                                NettyViewModel.updatePrescan(prescanB)
+                                            } else {
+                                                NettyViewModel.deletePrescan(prescanA.DocumentNo)
+                                                NettyViewModel.insertprescan(prescanB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePrescan = json1.decodeFromString<Prescan_Serializable>(msgtxt)
+                                            val prescan = createPrescan(SerializablePrescan)
+                                            NettyViewModel.insertprescan(prescan)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePrescan = json1.decodeFromString<Prescan_Serializable>(msgtxt)
+                                            val prescan = createPrescan(SerializablePrescan)
+                                            NettyViewModel.deletePrescan(prescan.DocumentNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+                                fun createPrescan(serializablePrescan: Prescan_Serializable): Prescan {
+                                    return Prescan(
+                                            serializablePrescan.DocumentNo,
+                                            serializablePrescan.Type,
+                                            serializablePrescan.CustomerGroup,
+                                            serializablePrescan.CreateUser,
+                                            serializablePrescan.CreationDate,
+                                            serializablePrescan.LastModifyUser,
+                                            serializablePrescan.LastModifyDate,
+                                            serializablePrescan.Suspend,
+                                            serializablePrescan.Finish
+                                    )
+                                }
+                                if (commuForm.Table == "Outer Carton") {
+                                    textView200txt = "Outer Carton"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializableOuterCartonList = json1.decodeFromString<List<OuterCarton_Serializable>>(msgtxt)
+                                            val outerCartonA = createOuterCarton(SerializableOuterCartonList[0])
+                                            val outerCartonB = createOuterCarton(SerializableOuterCartonList[1])
+
+                                            if (outerCartonA.DocumentNo == outerCartonB.DocumentNo &&
+                                                    outerCartonA.DocumentLineNo == outerCartonB.DocumentLineNo &&
+                                                    outerCartonA.LineNo == outerCartonB.LineNo) {
+                                                NettyViewModel.updateOuterCarton(outerCartonB)
+                                            } else {
+                                                NettyViewModel.deleteOuterCarton(outerCartonA.DocumentNo, outerCartonA.DocumentLineNo, outerCartonA.LineNo)
+                                                NettyViewModel.insertOuterCarton(outerCartonB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializableOuterCarton = json1.decodeFromString<OuterCarton_Serializable>(msgtxt)
+                                            val outerCarton = createOuterCarton(SerializableOuterCarton)
+                                            NettyViewModel.insertOuterCarton(outerCarton)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializableOuterCarton = json1.decodeFromString<OuterCarton_Serializable>(msgtxt)
+                                            val outerCarton = createOuterCarton(SerializableOuterCarton)
+                                            NettyViewModel.deleteOuterCarton(outerCarton.DocumentNo, outerCarton.DocumentLineNo, outerCarton.LineNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (commuForm.Table == "Inner Carton") {
+                                    textView200txt = "Inner Carton"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializableInnerCartonList = json1.decodeFromString<List<InnerCarton_Serializable>>(msgtxt)
+                                            val innerCartonA = createInnerCarton(SerializableInnerCartonList[0])
+                                            val innerCartonB = createInnerCarton(SerializableInnerCartonList[1])
+
+                                            if (innerCartonA.DocumentNo == innerCartonB.DocumentNo &&
+                                                    innerCartonA.DocumentLineNo == innerCartonB.DocumentLineNo &&
+                                                    innerCartonA.LineNo == innerCartonB.LineNo) {
+                                                NettyViewModel.updateInnerCarton(innerCartonB)
+                                            } else {
+                                                NettyViewModel.deleteInnerCarton(innerCartonA.DocumentNo, innerCartonA.DocumentLineNo, innerCartonA.OuterCartonLineNo, innerCartonA.LineNo)
+                                                NettyViewModel.insertInnerCarton(innerCartonB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializableInnerCarton = json1.decodeFromString<InnerCarton_Serializable>(msgtxt)
+                                            val innerCarton = createInnerCarton(SerializableInnerCarton)
+                                            NettyViewModel.insertInnerCarton(innerCarton)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializableInnerCarton = json1.decodeFromString<InnerCarton_Serializable>(msgtxt)
+                                            val innerCarton = createInnerCarton(SerializableInnerCarton)
+                                            NettyViewModel.deleteInnerCarton(innerCarton.DocumentNo, innerCarton.DocumentLineNo, innerCarton.OuterCartonLineNo, innerCarton.LineNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+
+
+                                if (commuForm.Table == "Prescan Outer Carton") {
+                                    textView200txt = "Prescan Outer Carton"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePrescanOuterCartonList = json1.decodeFromString<List<PrescanOuterCarton_Serializable>>(msgtxt)
+                                            val prescanOuterCartonA = createPrescanOuterCarton(SerializablePrescanOuterCartonList[0])
+                                            val prescanOuterCartonB = createPrescanOuterCarton(SerializablePrescanOuterCartonList[1])
+
+                                            if (prescanOuterCartonA.DocumentNo == prescanOuterCartonB.DocumentNo &&
+                                                    prescanOuterCartonA.LineNo == prescanOuterCartonB.LineNo) {
+                                                NettyViewModel.updatePrescanOuterCarton(prescanOuterCartonB)
+                                            } else {
+                                                NettyViewModel.deletePrescanOuterCarton(prescanOuterCartonA.DocumentNo, prescanOuterCartonA.LineNo)
+                                                NettyViewModel.insertPrescanOuterCarton(prescanOuterCartonB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePrescanOuterCarton = json1.decodeFromString<PrescanOuterCarton_Serializable>(msgtxt)
+                                            val prescanOuterCarton = createPrescanOuterCarton(SerializablePrescanOuterCarton)
+                                            NettyViewModel.insertPrescanOuterCarton(prescanOuterCarton)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePrescanOuterCarton = json1.decodeFromString<PrescanOuterCarton_Serializable>(msgtxt)
+                                            val prescanOuterCarton = createPrescanOuterCarton(SerializablePrescanOuterCarton)
+                                            NettyViewModel.deletePrescanOuterCarton(prescanOuterCarton.DocumentNo, prescanOuterCarton.LineNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (commuForm.Table == "Prescan Inner Carton") {
+                                    textView200txt = "Prescan Inner Carton"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePrescanInnerCartonList = json1.decodeFromString<List<PrescanInnerCarton_Serializable>>(msgtxt)
+                                            val prescanInnerCartonA = createPrescanInnerCarton(SerializablePrescanInnerCartonList[0])
+                                            val prescanInnerCartonB = createPrescanInnerCarton(SerializablePrescanInnerCartonList[1])
+
+                                            if (prescanInnerCartonA.DocumentNo == prescanInnerCartonB.DocumentNo &&
+                                                    prescanInnerCartonA.OuterCartonLineNo == prescanInnerCartonB.OuterCartonLineNo &&
+                                                    prescanInnerCartonA.LineNo == prescanInnerCartonB.LineNo) {
+                                                NettyViewModel.updatePrescanInnerCarton(prescanInnerCartonB)
+                                            } else {
+                                                NettyViewModel.deletePrescanInnerCarton(prescanInnerCartonA.DocumentNo, prescanInnerCartonA.OuterCartonLineNo, prescanInnerCartonA.LineNo)
+                                                NettyViewModel.insertPrescanInnerCarton(prescanInnerCartonB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePrescanInnerCarton = json1.decodeFromString<PrescanInnerCarton_Serializable>(msgtxt)
+                                            val prescanInnerCarton = createPrescanInnerCarton(SerializablePrescanInnerCarton)
+                                            NettyViewModel.insertPrescanInnerCarton(prescanInnerCarton)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePrescanInnerCarton = json1.decodeFromString<PrescanInnerCarton_Serializable>(msgtxt)
+                                            val prescanInnerCarton = createPrescanInnerCarton(SerializablePrescanInnerCarton)
+                                            NettyViewModel.deletePrescanInnerCarton(prescanInnerCarton.DocumentNo, prescanInnerCarton.OuterCartonLineNo, prescanInnerCarton.LineNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+
+                                //if (commuForm.Table == "Label Header") {
+                                //    textView200txt = "Label Header"
+                                //    val json1: Json = Json { coerceInputValues = true }
+                                //    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+//
+                                //    when (commuForm.Action) {
+                                //        "Update" -> {
+                                //            val SerializableLabelHeaderList = json1.decodeFromString<List<LabelHeader_Serializable>>(msgtxt)
+                                //            //val labelHeaderA = createLabelHeader(SerializableLabelHeaderList[0])
+                                //            //val labelHeaderB = createLabelHeader(SerializableLabelHeaderList[1])
+//
+                                //            if (labelHeaderA.Code == labelHeaderB.Code) {
+                                //                NettyViewModel.updateLabelHeader(labelHeaderB)
+                                //            } else {
+                                //                NettyViewModel.deleteLabelHeader(labelHeaderA.Code)
+                                //                NettyViewModel.insertLabelHeader(labelHeaderB)
+                                //            }
+                                //        }
+                                //        "Insert" -> {
+                                //            val SerializableLabelHeader = json1.decodeFromString<LabelHeader_Serializable>(msgtxt)
+                                //            val labelHeader = createLabelHeader(SerializableLabelHeader)
+                                //            NettyViewModel.insertLabelHeader(labelHeader)
+                                //            progressBar1Counter++
+                                //        }
+                                //        "Delete" -> {
+                                //            val SerializableLabelHeader = json1.decodeFromString<LabelHeader_Serializable>(msgtxt)
+                                //            val labelHeader = createLabelHeader(SerializableLabelHeader)
+                                //            NettyViewModel.deleteLabelHeader(labelHeader.Code)
+                                //        }
+                                //        "Init_Done" -> {
+                                //            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                //            try {
+                                //                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                //            } catch (e: Exception) {
+                                //                // Handle exception if necessary
+                                //            }
+                                //        }
+                                //    }
+                                //}
+
+                                //if (commuForm.Table == "Label Line") {
+                                //    textView200txt = "Label Line"
+                                //    val json1: Json = Json { coerceInputValues = true }
+                                //    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+//
+                                //    when (commuForm.Action) {
+                                //        "Update" -> {
+                                //            val SerializableLabelLineList = json1.decodeFromString<List<LabelLine_Serializable>>(msgtxt)
+                                //            val labelLineA = createLabelLine(SerializableLabelLineList[0])
+                                //            val labelLineB = createLabelLine(SerializableLabelLineList[1])
+//
+                                //            if (labelLineA.Code == labelLineB.Code && labelLineA.LineNo == labelLineB.LineNo) {
+                                //                NettyViewModel.updateLabelLine(labelLineB)
+                                //            } else {
+                                //                NettyViewModel.deleteLabelLine(labelLineA.Code, labelLineA.LineNo)
+                                //                NettyViewModel.insertLabelLine(labelLineB)
+                                //            }
+                                //        }
+                                //        "Insert" -> {
+                                //            val SerializableLabelLine = json1.decodeFromString<LabelLine_Serializable>(msgtxt)
+                                //            val labelLine = createLabelLine(SerializableLabelLine)
+                                //            NettyViewModel.insertLabelLine(labelLine)
+                                //            progressBar1Counter++
+                                //        }
+                                //        "Delete" -> {
+                                //            val SerializableLabelLine = json1.decodeFromString<LabelLine_Serializable>(msgtxt)
+                                //            val labelLine = createLabelLine(SerializableLabelLine)
+                                //            NettyViewModel.deleteLabelLine(labelLine.Code, labelLine.LineNo)
+                                //        }
+                                //        "Init_Done" -> {
+                                //            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                //            try {
+                                //                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                //            } catch (e: Exception) {
+                                //                // Handle exception if necessary
+                                //            }
+                                //        }
+                                //    }
+                                //}
+
+                                if (commuForm.Table == "Packing Mapping") {
+                                    textView200txt = "Packing Mapping"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SerializablePackingMappingList = json1.decodeFromString<List<PackingMapping_Serializable>>(msgtxt)
+                                            val packingMappingA = createPackingMapping(SerializablePackingMappingList[0])
+                                            val packingMappingB = createPackingMapping(SerializablePackingMappingList[1])
+
+                                            if (packingMappingA.PackingNo == packingMappingB.PackingNo) {
+                                                NettyViewModel.updatePackingMapping(packingMappingB)
+                                            } else {
+                                                NettyViewModel.deletePackingMapping(packingMappingA.PackingNo)
+                                                NettyViewModel.insertPackingMapping(packingMappingB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SerializablePackingMapping = json1.decodeFromString<PackingMapping_Serializable>(msgtxt)
+                                            val packingMapping = createPackingMapping(SerializablePackingMapping)
+                                            NettyViewModel.insertPackingMapping(packingMapping)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SerializablePackingMapping = json1.decodeFromString<PackingMapping_Serializable>(msgtxt)
+                                            val packingMapping = createPackingMapping(SerializablePackingMapping)
+                                            NettyViewModel.deletePackingMapping(packingMapping.PackingNo)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (commuForm.Table == "Item") {
+                                    textView200txt = "Item"
+                                    Log.i("ItemItemItem 1", commuForm.Action)
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SItemList = json1.decodeFromString<List<Item_Serializable>>(msgtxt)
+                                            val itemA = createItem(SItemList[0])
+                                            val itemB = createItem(SItemList[1])
+
+                                            if (itemA.No == itemB.No) {
+                                                NettyViewModel.updateItem(itemB)
+                                            } else {
+                                                NettyViewModel.deleteItem(itemA.No)
+                                                NettyViewModel.insertItem(itemB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SItem = json1.decodeFromString<Item_Serializable>(msgtxt)
+                                            val item = createItem(SItem)
+                                            NettyViewModel.insertItem(item)
+                                            //progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SItem = json1.decodeFromString<Item_Serializable>(msgtxt)
+                                            val item = createItem(SItem)
+                                            NettyViewModel.deleteItem(item.No)
+                                        }
+                                    }
+                                }
+
+                                if (commuForm.Table == "Customer Group") {
+                                    textView200txt = "Customer Group"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SCustomerGroupList = json1.decodeFromString<List<CustomerGroup_Serializable>>(msgtxt)
+                                            val customerGroupA = createCustomerGroup(SCustomerGroupList[0])
+                                            val customerGroupB = createCustomerGroup(SCustomerGroupList[1])
+
+                                            if (customerGroupA.Code == customerGroupB.Code) {
+                                                NettyViewModel.updateCustomerGroup(customerGroupB)
+                                            } else {
+                                                NettyViewModel.deleteCustomerGroup(customerGroupA.Code)
+                                                NettyViewModel.insertCustomerGroup(customerGroupB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SCustomerGroup = json1.decodeFromString<CustomerGroup_Serializable>(msgtxt)
+                                            val customerGroup = createCustomerGroup(SCustomerGroup)
+                                            NettyViewModel.insertCustomerGroup(customerGroup)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SCustomerGroup = json1.decodeFromString<CustomerGroup_Serializable>(msgtxt)
+                                            val customerGroup = createCustomerGroup(SCustomerGroup)
+                                            NettyViewModel.deleteCustomerGroup(customerGroup.Code)
+                                        }
+                                    }
+                                }
+
+                                if (commuForm.Table == "Printer") {
+                                    textView200txt = "Printer"
+                                    val json1: Json = Json { coerceInputValues = true }
+                                    val msgtxt = if (commuForm.Str.startsWith("@")) commuForm.Str.removeRange(0, 1) else commuForm.Str
+
+                                    when (commuForm.Action) {
+                                        "Update" -> {
+                                            val SPrinterList = json1.decodeFromString<List<Printer_Serializable>>(msgtxt)
+                                            val printerA = createPrinter(SPrinterList[0])
+                                            val printerB = createPrinter(SPrinterList[1])
+
+                                            if (printerA.Code == printerB.Code) {
+                                                NettyViewModel.updatePrinter(printerB)
+                                            } else {
+                                                NettyViewModel.deletePrinter(printerA.Code)
+                                                NettyViewModel.insertPrinter(printerB)
+                                            }
+                                        }
+                                        "Insert" -> {
+                                            val SPrinter = json1.decodeFromString<Printer_Serializable>(msgtxt)
+                                            val printer = createPrinter(SPrinter)
+                                            NettyViewModel.insertPrinter(printer)
+                                            progressBar1Counter++
+                                        }
+                                        "Delete" -> {
+                                            val SPrinter = json1.decodeFromString<Printer_Serializable>(msgtxt)
+                                            val printer = createPrinter(SPrinter)
+                                            NettyViewModel.deletePrinter(printer.Code)
+                                        }
+                                        "Init_Done" -> {
+                                            val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+                                            try {
+                                                NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                            } catch (e: Exception) {
+                                                // Handle exception if necessary
+                                            }
+                                        }
+                                    }
+                                }
+                                if (commuForm.Action == "Initial") {
+                                    FirstConnect = false
+                                    pSharedPrefs.edit()
+                                            .putString("FirstConnect", "false")
+                                            .apply()
+                                    UpdateFinish = true
+                                    var commuForm = CommuForm("SQL", "success", "success", "")
+
+                                    try {
+                                        NettyClient.pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+                                    } catch (e: Exception) {
+                                    }
+                                }
+                                if (commuForm.Action == "Connect") {
+                                    Log.i("Connect", "ConnectConnectConnect")
+                                }
+                                //if (commuForm.Action == "UpdateFinish") {
+                                //    UpdateFinish = true
+                                //}
+                            }
+                        }
+                        var a = receivedMsgBuf2.readBytes(receivedMsgBuf2.writerIndex())
+                        receivedMsgBuf2.discardReadBytes()
+                    }
+                }
+                catch (E: Exception)
+                {
+
+                }
+                i = 0
+            }
+        }
+        fun createUser(serializableuser: User_Serializable): User {
+            return User(
+                    serializableuser.UserID,
+                    serializableuser.Password,
+                    serializableuser.CreateUser,
+                    serializableuser.CreationDate,
+                    serializableuser.LastModifyUser,
+                    serializableuser.LastModifyDate
+            )
+        }
+
+        fun createPackingHeader(serializablePH: PackingHeader_Serializable): PackingHeader {
+            return PackingHeader(
+                    serializablePH.No,
+                    serializablePH.BillToCustomerNo,
+                    serializablePH.BillToName,
+                    serializablePH.BillToName2,
+                    serializablePH.TotalCarton,
+                    serializablePH.CustomerGroup,
+                    serializablePH.ShiptoCode,
+                    serializablePH.ShippingAgentCode,
+                    serializablePH.ShiptoName,
+                    serializablePH.ShiptoName2,
+                    serializablePH.ShiptoAddress,
+                    serializablePH.ShiptoAddress2,
+                    serializablePH.ShiptoCity,
+                    serializablePH.ShiptoContact,
+                    serializablePH.ShiptoPostCode,
+                    serializablePH.ShiptoCounty,
+                    serializablePH.ShiptoCountryCode,
+                    serializablePH.ShiptoPhone,
+                    serializablePH.ShiptoFax,
+                    serializablePH.CountryofOrigin,
+                    serializablePH.CustomerPO1,
+                    serializablePH.CustomerPO2,
+                    serializablePH.CustomerPO3,
+                    serializablePH.CustomerPO4,
+                    serializablePH.CustomerPO5,
+                    serializablePH.CustomerPOList,
+                    serializablePH.LastUpdatedUserID,
+                    serializablePH.LastUpdatedDateTime,
+                    false,
+                    false
+            )
+        }
+        fun createPackingLine(serializablePL: PackingLine_Serializable): PackingLine {
+            return PackingLine(
+                    serializablePL.DocumentNo,
+                    serializablePL.LineNo,
+                    serializablePL.NumberOfCartons,
+                    serializablePL.ItemNo,
+                    serializablePL.CrossReferenceNo,
+                    serializablePL.QuantityPerCarton,
+                    serializablePL.SubtotalQuantity,
+                    serializablePL.CountryofOrigin,
+                    serializablePL.CartonID
+            )
+        }
+        fun createMapping(serializableMapping: Mapping_Serializable): Mapping {
+            return Mapping(
+                    serializableMapping.No,
+                    serializableMapping.ItemNo,
+                    serializableMapping.ScanItemNo,
+                    serializableMapping.CrossReferenceNo,
+                    serializableMapping.CreateUser,
+                    serializableMapping.CreationDate,
+                    serializableMapping.LastModifyUser,
+                    serializableMapping.LastModifyDate,
+                    serializableMapping.Description,
+                    serializableMapping.Vendor,
+                    serializableMapping.MSL,
+                    serializableMapping.BAND,
+                    serializableMapping.Spare1,
+                    serializableMapping.Spare2,
+                    serializableMapping.Spare3
+            )
+        }
+        fun createScanLabelString(serializableScanLabelString: ScanLabelString_Serializable): ScanLabelString {
+            return ScanLabelString(
+                    serializableScanLabelString.EntryNo,
+                    serializableScanLabelString.LabelString,
+                    serializableScanLabelString.DocumentNo,
+                    serializableScanLabelString.DocumentLineNo,
+                    serializableScanLabelString.Prescan,
+                    serializableScanLabelString.CreateUser,
+                    serializableScanLabelString.CreationDate,
+                    serializableScanLabelString.LastModifyUser,
+                    serializableScanLabelString.LastModifyDate,
+                    serializableScanLabelString.CartonID,
+                    serializableScanLabelString.Closed
+            )
+        }
+
+        fun createOuterCarton(serializableOuterCarton: OuterCarton_Serializable): OuterCarton {
+            return OuterCarton(
+                    serializableOuterCarton.DocumentNo,
+                    serializableOuterCarton.DocumentLineNo,
+                    serializableOuterCarton.LineNo,
+                    serializableOuterCarton.NoOfCarton,
+                    serializableOuterCarton.CartonID,
+                    serializableOuterCarton.CSPN,
+                    serializableOuterCarton.ItemNo,
+                    serializableOuterCarton.DateCode,
+                    serializableOuterCarton.LotNo,
+                    serializableOuterCarton.Quantity,
+                    serializableOuterCarton.Closed,
+                    serializableOuterCarton.SelectedQuantity,
+                    serializableOuterCarton.CrossReferenceNo,
+                    serializableOuterCarton.SeqNo,
+                    serializableOuterCarton.DCMMDD,
+                    serializableOuterCarton.DCYYMMDD,
+                    serializableOuterCarton.DCYYYYMMDD,
+                    serializableOuterCarton.Description,
+                    serializableOuterCarton.Vendor,
+                    serializableOuterCarton.TotalCarton,
+                    serializableOuterCarton.MSL,
+                    serializableOuterCarton.PO,
+                    serializableOuterCarton.BAND,
+                    serializableOuterCarton.Origin,
+                    serializableOuterCarton.LabelDateMMDD,
+                    serializableOuterCarton.LabelDateYYMMDD,
+                    serializableOuterCarton.Morethatonelabel,
+                    serializableOuterCarton.BigCartonID,
+                    serializableOuterCarton.Spare1,
+                    serializableOuterCarton.Spare2,
+                    serializableOuterCarton.LabelDate
+            )
+        }
+        fun createPrescan(serializablePrescan: Prescan_Serializable): Prescan {
+            return Prescan(
+                    serializablePrescan.DocumentNo,
+                    serializablePrescan.Type,
+                    serializablePrescan.CustomerGroup,
+                    serializablePrescan.CreateUser,
+                    serializablePrescan.CreationDate,
+                    serializablePrescan.LastModifyUser,
+                    serializablePrescan.LastModifyDate,
+                    serializablePrescan.Suspend,
+                    serializablePrescan.Finish
+            )
+        }
+        fun createInnerCarton(serializableInnerCarton: InnerCarton_Serializable): InnerCarton {
+            return InnerCarton(
+                    serializableInnerCarton.DocumentNo,
+                    serializableInnerCarton.DocumentLineNo,
+                    serializableInnerCarton.OuterCartonLineNo,
+                    serializableInnerCarton.LineNo,
+                    serializableInnerCarton.CartonID,
+                    serializableInnerCarton.CSPN,
+                    serializableInnerCarton.ItemNo,
+                    serializableInnerCarton.DateCode,
+                    serializableInnerCarton.LotNo,
+                    serializableInnerCarton.Quantity,
+                    serializableInnerCarton.Closed,
+                    serializableInnerCarton.Selected,
+                    serializableInnerCarton.CrossReferenceNo,
+                    serializableInnerCarton.SeqNo,
+                    serializableInnerCarton.DCMMDD,
+                    serializableInnerCarton.DCYYMMDD,
+                    serializableInnerCarton.DCYYYYMMDD,
+                    serializableInnerCarton.Description,
+                    serializableInnerCarton.Vendor,
+                    serializableInnerCarton.TotalCarton,
+                    serializableInnerCarton.MSL,
+                    serializableInnerCarton.PO,
+                    serializableInnerCarton.BAND,
+                    serializableInnerCarton.Origin,
+                    serializableInnerCarton.LabelDateMMDD,
+                    serializableInnerCarton.LabelDateYYMMDD,
+                    serializableInnerCarton.Morethatonelabel,
+                    serializableInnerCarton.BigCartonID,
+                    serializableInnerCarton.Spare1,
+                    serializableInnerCarton.Spare2,
+                    serializableInnerCarton.LabelDate
+            )
+        }
+
+
+        fun createPrescanOuterCarton(serializablePrescanOuterCarton: PrescanOuterCarton_Serializable): PrescanOuterCarton {
+            return PrescanOuterCarton(
+                    serializablePrescanOuterCarton.DocumentNo,
+                    serializablePrescanOuterCarton.LineNo,
+                    serializablePrescanOuterCarton.NoOfCarton,
+                    serializablePrescanOuterCarton.CartonID,
+                    serializablePrescanOuterCarton.CSPN,
+                    serializablePrescanOuterCarton.ItemNo,
+                    serializablePrescanOuterCarton.DateCode,
+                    serializablePrescanOuterCarton.LotNo,
+                    serializablePrescanOuterCarton.Quantity,
+                    serializablePrescanOuterCarton.Closed,
+                    serializablePrescanOuterCarton.SelectedQuantity,
+                    serializablePrescanOuterCarton.CrossReferenceNo,
+                    serializablePrescanOuterCarton.SeqNo,
+                    serializablePrescanOuterCarton.DCMMDD,
+                    serializablePrescanOuterCarton.DCYYMMDD,
+                    serializablePrescanOuterCarton.DCYYYYMMDD,
+                    serializablePrescanOuterCarton.Description,
+                    serializablePrescanOuterCarton.Vendor,
+                    serializablePrescanOuterCarton.TotalCarton,
+                    serializablePrescanOuterCarton.MSL,
+                    serializablePrescanOuterCarton.PO,
+                    serializablePrescanOuterCarton.BAND,
+                    serializablePrescanOuterCarton.Origin,
+                    serializablePrescanOuterCarton.LabelDateMMDD,
+                    serializablePrescanOuterCarton.LabelDateYYMMDD,
+                    serializablePrescanOuterCarton.Morethatonelabel,
+                    serializablePrescanOuterCarton.BigCartonID,
+                    serializablePrescanOuterCarton.Spare1,
+                    serializablePrescanOuterCarton.Spare2,
+                    serializablePrescanOuterCarton.LabelDate
+            )
+        }
+        fun createPrescanInnerCarton(serializablePrescanInnerCarton: PrescanInnerCarton_Serializable): PrescanInnerCarton {
+            return PrescanInnerCarton(
+                    serializablePrescanInnerCarton.DocumentNo,
+                    serializablePrescanInnerCarton.OuterCartonLineNo,
+                    serializablePrescanInnerCarton.LineNo,
+                    serializablePrescanInnerCarton.CartonID,
+                    serializablePrescanInnerCarton.CSPN,
+                    serializablePrescanInnerCarton.ItemNo,
+                    serializablePrescanInnerCarton.DateCode,
+                    serializablePrescanInnerCarton.LotNo,
+                    serializablePrescanInnerCarton.Quantity,
+                    serializablePrescanInnerCarton.Closed,
+                    serializablePrescanInnerCarton.Selected,
+                    serializablePrescanInnerCarton.CrossReferenceNo,
+                    serializablePrescanInnerCarton.SeqNo,
+                    serializablePrescanInnerCarton.DCMMDD,
+                    serializablePrescanInnerCarton.DCYYMMDD,
+                    serializablePrescanInnerCarton.DCYYYYMMDD,
+                    serializablePrescanInnerCarton.Description,
+                    serializablePrescanInnerCarton.Vendor,
+                    serializablePrescanInnerCarton.TotalCarton,
+                    serializablePrescanInnerCarton.MSL,
+                    serializablePrescanInnerCarton.PO,
+                    serializablePrescanInnerCarton.BAND,
+                    serializablePrescanInnerCarton.Origin,
+                    serializablePrescanInnerCarton.LabelDateMMDD,
+                    serializablePrescanInnerCarton.LabelDateYYMMDD,
+                    serializablePrescanInnerCarton.Morethatonelabel,
+                    serializablePrescanInnerCarton.BigCartonID,
+                    serializablePrescanInnerCarton.Spare1,
+                    serializablePrescanInnerCarton.Spare2,
+                    serializablePrescanInnerCarton.LabelDate
+            )
+        }
+
+        fun createPackingMapping(serializablePackingMapping: PackingMapping_Serializable): PackingMapping {
+            return PackingMapping(
+                    serializablePackingMapping.PackingNo,
+                    serializablePackingMapping.PrescanNo,
+                    serializablePackingMapping.CreateUser,
+                    serializablePackingMapping.CreationDate,
+                    serializablePackingMapping.LastModifyUser,
+                    serializablePackingMapping.LastModifyDate
+            )
+        }
+
+        fun createItem(serializableItem: Item_Serializable): Item {
+            return Item(
+                    serializableItem.No,
+                    serializableItem.Description,
+                    serializableItem.ItemNoForLabels,
+                    serializableItem.QtyperCarton,
+                    serializableItem.QtyperSmallCarton
+            )
+        }
+
+        fun createCustomerGroup(serializableCustomerGroup: CustomerGroup_Serializable): CustomerGroup {
+            return CustomerGroup(
+                    serializableCustomerGroup.Code,
+                    serializableCustomerGroup.Description,
+                    "",
+                    false,
+                    "",
+                    ""
+            )
+        }
+
+
+        fun createPrinter(serializablePrinter: Printer_Serializable): Printer {
+            return Printer(
+                    serializablePrinter.Code,
+                    serializablePrinter.Description,
+                    false,
+                    serializablePrinter.IP,
+                    serializablePrinter.Port
+            )
+        }
+        fun sendMsgToServer(Msg:String) {
+            val commuForm = CommuForm("SQL", "Select", "All", "Msg")
+            pNettyTcpClient.sendMsgToServer(Json.encodeToString(commuForm))
+        }
+        fun connectStatus():Boolean {
+            return pNettyTcpClient.connectStatus
+        }
+    }
+}

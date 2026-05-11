@@ -1,0 +1,659 @@
+package com.example.android.wms.Socket
+
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.net.wifi.WifiManager
+import android.os.Binder
+import android.os.IBinder
+import android.util.Log
+import com.example.android.wms.Database.*
+import com.example.android.wms.R
+import com.example.android.wms.Socket.client.NettyTcpClient
+import com.example.android.wms.Socket.client.constant.ConnectState
+import com.example.android.wms.Socket.client.listener.NettyClientListener
+import com.example.android.wms.Socket.client.table.*
+import com.example.android.wms.Socket.ui.domain.MessageBean
+import io.netty.buffer.ByteBuf
+import io.netty.buffer.Unpooled
+import io.netty.util.CharsetUtil
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.StringWriter
+import java.net.NetworkInterface
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.*
+import android.util.JsonWriter
+import android.widget.ProgressBar
+import android.widget.TextView
+import com.example.android.wms.WMSApplication
+import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
+
+
+/**
+ * Netty TCP 客户端服务
+ * 负责与服务端建立连接、收发消息、解析处理业务数据
+ */
+class NettyClient : Service(), NettyClientListener<String> {
+    // 日志标签
+    private val TAG = "NettyClientService"
+    // Netty TCP 客户端实例
+    private lateinit var nettyTcpClient: NettyTcpClient
+    // 服务端IP
+    private var serverIp: String = ""
+    // 服务端端口
+    private var serverPort: Int = 0
+    // Binder 用于与Activity通信
+    private val mBinder = MyBinder()
+    // 协程作用域（与服务生命周期绑定，避免内存泄漏）
+    private val serviceCoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // SharedPreferences 实例
+    private lateinit var sharedPrefs: SharedPreferences
+    // 接收消息缓冲区
+    private val receivedMsgBuf = Unpooled.buffer(10 * 1024 * 1024) // 10MB 缓冲区
+    // 消息列表
+    private val messageList: MutableList<MessageBean> = mutableListOf()
+
+    // JSON 解析器（全局单例，避免重复创建）
+    private val jsonParser = Json {
+        coerceInputValues = true // 兼容无效输入
+        ignoreUnknownKeys = true // 忽略未知字段
+    }
+
+    // ViewModel 相关实例（延迟初始化，避免提前创建）
+    private val wmsDatabase by lazy { WMSDatabase.getInstance(WMSApplication.appContext, serviceCoroutineScope) }
+    private val nettyDao by lazy { wmsDatabase.Dao() }
+    private val nettyRepository by lazy { NettyRepository(nettyDao) }
+    private val nettyViewModel by lazy { NettyViewModel(nettyRepository) }
+
+    /**
+     * Binder 内部类，提供外部调用服务方法的入口
+     */
+    inner class MyBinder : Binder() {
+        fun getService(): NettyClient = this@NettyClient
+
+        /**
+         * 初始化并启动Netty连接
+         * @param isHeartBeat 是否开启心跳机制
+         */
+        fun initNettyClient(isHeartBeat: Boolean) {
+            this@NettyClient.initNettyClient(isHeartBeat)
+        }
+    }
+
+    /**
+     * 获取SharedPreferences String类型值
+     */
+    private fun getStringPref(key: String, defaultValue: String = ""): String {
+        return sharedPrefs.getString(key, defaultValue) ?: defaultValue
+    }
+
+    /**
+     * 获取SharedPreferences Int类型值
+     */
+    private fun getIntPref(key: String, defaultValue: Int = 0): Int {
+        return try {
+            sharedPrefs.getString(key, defaultValue.toString())?.toInt() ?: defaultValue
+        } catch (e: NumberFormatException) {
+            Log.e(TAG, "获取Int类型配置失败，key: $key", e)
+            defaultValue
+        }
+    }
+
+    /**
+     * 构建Netty TCP客户端
+     */
+    private fun buildNettyClient(ip: String, port: Int, isHeartBeat: Boolean, commuForm: CommuForm): NettyTcpClient {
+        return NettyTcpClient.Builder()
+                .setHost(ip)
+                .setTcpPort(port)
+                .setMaxReconnectTimes(5000)
+                .setReconnectIntervalTime(30000)
+                .setSendheartBeat(isHeartBeat)
+                .setHeartBeatInterval(30)
+                .setHeartBeatData(jsonParser.encodeToString(commuForm))
+                .setIndex(0)
+                .build()
+    }
+
+    // 关键：定义与调用签名一致的 init 方法（参数为 Boolean，无返回值）
+    fun init(isHeartbeat: Boolean) {
+
+         sharedPrefs = WMSApplication.appContext.getSharedPreferences("ClientUserSettings", Context.MODE_PRIVATE)
+
+        // 方法内部逻辑（你的原有初始化逻辑，如读取IP/Port、初始化 pNettyTcpClient 等）
+        val ip = sharedPrefs.getString("IP", "") ?: ""
+        val port = sharedPrefs.getString("PORT", "")?.toInt() ?: 0
+
+        // 后续 Netty 客户端初始化逻辑...
+        if (ip.isNotBlank() && port > 0) {
+            // 初始化 pNettyTcpClient 等操作
+            Log.d("NettyClient", "Netty 客户端初始化完成，心跳开关：$isHeartbeat")
+        } else {
+            Log.e("NettyClient", "IP 或 Port 配置无效，初始化失败")
+        }
+        initNettyClient(isHeartbeat)
+    }
+
+
+    /**
+     * 初始化Netty客户端并建立连接
+     */
+    private fun initNettyClient(isHeartBeat: Boolean) {
+        Log.d(TAG, "开始初始化Netty客户端")
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                // 从SharedPreferences读取配置
+                serverIp = getStringPref("IP")
+                serverPort = getIntPref("PORT")
+
+                sharedPrefs = WMSApplication.appContext.getSharedPreferences("ClientUserSettings", Context.MODE_PRIVATE)
+
+                NettyClientConfig.firstConnect = !sharedPrefs.contains("FirstConnect")
+
+                // 1. 前置校验：pNettyTcpClient 是否已初始化
+                val isInitialized = NettyInitData.isPNettyTcpClientInitialized()
+                if (!isInitialized) {
+                    // 未初始化则先执行初始化，初始化失败则直接返回
+                    val initSuccess = NettyInitData.initPNettyTcpClient(serverIp, serverPort)
+                    if (!initSuccess) {
+                        Log.e("NettyClient", "pNettyTcpClient 初始化失败，无法执行 connect")
+                        return@launch
+                    }
+                }
+
+                // 构建通信参数
+                val commuForm = CommuForm("SQL", "Select", "ALL", getMacAddress())
+                // 初始化Netty客户端
+                nettyTcpClient = buildNettyClient(serverIp, serverPort, isHeartBeat, commuForm)
+                nettyTcpClient.setListener(this@NettyClient)
+
+                // 协程中执行连接操作（避免主线程阻塞）
+                serviceCoroutineScope.launch(Dispatchers.IO) {
+                    if (!nettyTcpClient.connectStatus) {
+                        nettyTcpClient.connect()
+                        delay(1000)
+                        NettyClientConfig.isNettyConnected = nettyTcpClient.connectStatus
+                        Log.d(TAG, "Netty连接状态：${if (NettyClientConfig.isNettyConnected) "已连接" else "连接失败"}")
+                    } else {
+                        nettyTcpClient.disconnect()
+                        NettyClientConfig.isNettyConnected = false
+                        Log.d(TAG, "Netty已中断连接")
+                    }
+                }
+            } catch (e: UninitializedPropertyAccessException) {
+                // 兜底捕获：防止极端场景下的未初始化异常
+                Log.e("NettyClient", "协程中访问 pNettyTcpClient 未初始化：${e.message}", e)
+            } catch (e: Exception) {
+                Log.e("NettyClient", "协程中 Netty 连接失败：${e.message}", e)
+            }
+
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "onCreate executed")
+        // 初始化SharedPreferences
+        sharedPrefs = applicationContext.getSharedPreferences("WMS_CONFIG", Context.MODE_PRIVATE)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand executed")
+        // 返回START_STICKY，服务被异常杀死后可重启
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "onDestroy executed")
+        // 关闭Netty连接
+        try {
+            if (::nettyTcpClient.isInitialized) {
+                nettyTcpClient.disconnect()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭Netty连接失败", e)
+        }
+        // 取消所有协程，避免内存泄漏
+        serviceCoroutineScope.cancel()
+        NettyClientConfig.releaseResources() // 释放缓冲区
+
+
+        // 释放缓冲区
+        receivedMsgBuf.release()
+        NettyClientConfig.receivedMsgBuf.release()
+    }
+
+    override fun onBind(intent: Intent?): IBinder {
+        return mBinder
+    }
+
+    /**
+     * 接收服务端消息回调
+     */
+    override fun onMessageResponseClient(msg: String, index: Int) {
+        if (msg.isNotBlank()) {
+            NettyClientConfig.receivedMsgBuf.writeBytes(Unpooled.copiedBuffer(msg, CharsetUtil.UTF_8))
+            // 异步处理消息
+            serviceCoroutineScope.launch(Dispatchers.IO) {
+                handleReceivedMessages()
+            }
+        }
+    }
+
+    /**
+     * 连接状态变化回调
+     */
+    override fun onClientStatusConnectChanged(statusCode: Int, index: Int) {
+        when (statusCode) {
+            ConnectState.STATUS_CONNECT_SUCCESS -> {
+                Log.d(TAG, "Netty连接成功")
+                NettyClientConfig.isNettyConnected = true
+                NettyClientConfig.nettyState = true
+            }
+            else -> {
+                Log.d(TAG, "Netty连接状态变化：$statusCode")
+                NettyClientConfig.isNettyConnected = false
+                NettyClientConfig.nettyState = false
+            }
+        }
+    }
+
+    /**
+     * 处理接收的消息数据
+     */
+    private suspend fun handleReceivedMessages() {
+
+        Log.i("AAAB","AA")
+        Log.i("AAAB", NettyClientConfig.receivedMsgBuf.isReadable.toString())
+        val msgBuf = NettyClientConfig.receivedMsgBuf
+        if (!msgBuf.isReadable) return
+
+        try {
+            // 读取缓冲区数据
+            val byteArray = ByteArray(msgBuf.writerIndex())
+            msgBuf.readBytes(byteArray)
+            val msgContent = String(byteArray, CharsetUtil.UTF_8)
+            val msgList = msgContent.split("\n").filter { it.length > 46 } // 过滤无效消息
+
+            // 遍历处理每条消息
+            msgList.forEach { msgStr ->
+                try {
+                    val commuForm = jsonParser.decodeFromString<CommuForm>(msgStr)
+                    Log.i(TAG, "解析到消息：Table=${commuForm.Table}, Action=${commuForm.Action}")
+                    // 分发处理业务消息
+                    dispatchBusinessMessage(commuForm)
+                } catch (e: Exception) {
+                    Log.e(TAG, "解析消息失败，消息内容：$msgStr", e)
+                }
+            }
+
+            // 清空已读取的缓冲区
+            msgBuf.discardReadBytes()
+        } catch (e: Exception) {
+            Log.e(TAG, "处理消息缓冲区失败", e)
+        }
+    }
+
+    /**
+     * 分发业务消息（按Table类型处理）
+     */
+    private suspend fun dispatchBusinessMessage(commuForm: CommuForm) {
+        when (commuForm.Table) {
+            "Count" -> handleCountMessage(commuForm)
+            "MsgDone" -> handleMsgDoneMessage(commuForm)
+            "User" -> handleUserMessage(commuForm)
+            "Packing Header" -> handlePackingHeaderMessage(commuForm)
+            "Packing Line" -> handlePackingLineMessage(commuForm)
+            //"Mapping" -> handleMappingMessage(commuForm)
+            //"Scan Label String" -> handleScanLabelStringMessage(commuForm)
+            //"Prescan" -> handlePrescanMessage(commuForm)
+            //"Outer Carton" -> handleOuterCartonMessage(commuForm)
+            //"Inner Carton" -> handleInnerCartonMessage(commuForm)
+            //"Prescan Outer Carton" -> handlePrescanOuterCartonMessage(commuForm)
+            //"Prescan Inner Carton" -> handlePrescanInnerCartonMessage(commuForm)
+            //"Packing Mapping" -> handlePackingMappingMessage(commuForm)
+            //"Item" -> handleItemMessage(commuForm)
+            //"Customer Group" -> handleCustomerGroupMessage(commuForm)
+            //"Printer" -> handlePrinterMessage(commuForm)
+            else -> Log.w(TAG, "未识别的Table类型：${commuForm.Table}")
+        }
+
+        // 处理公共Action
+        when (commuForm.Action) {
+            "Initial" -> handleInitialAction(commuForm)
+            "Connect" -> Log.i(TAG, "收到服务端连接确认消息")
+        }
+    }
+
+    // ------------------------ 各业务模块消息处理 ------------------------
+    private fun handleCountMessage(commuForm: CommuForm) {
+        try {
+            val total = commuForm.Str.removePrefix("@").toInt()
+            NettyClientConfig.progressBar1Total = total
+            sharedPrefs.edit().putString("progressBar1Total", total.toString()).apply()
+        } catch (e: NumberFormatException) {
+            Log.e(TAG, "解析Count消息失败", e)
+        }
+    }
+
+    private fun handleMsgDoneMessage(commuForm: CommuForm) {
+        NettyClientConfig.isMsgDone = true
+        Log.i(TAG, "收到消息完成通知：MsgDone")
+    }
+
+    private suspend fun handleUserMessage(commuForm: CommuForm) {
+        NettyClientConfig.textView200Txt = "User"
+        val msgTxt = commuForm.Str.removePrefix("@")
+        withContext(Dispatchers.IO) {
+            when (commuForm.Action) {
+                "Update" -> {
+                    val userList = jsonParser.decodeFromString<List<User_Serializable>>(msgTxt)
+                    if (userList.size >= 2) {
+                        val userA = convertToUser(userList[0])
+                        val userB = convertToUser(userList[1])
+                        if (userA.UserID == userB.UserID) {
+                            nettyViewModel.updateUser(userB)
+                        } else {
+                            nettyViewModel.deleteUser(userA.UserID)
+                            nettyViewModel.insertUser(userB)
+                        }
+                    } else  {
+
+                    }
+                }
+                "Insert" -> {
+                    val userSerializable = jsonParser.decodeFromString<User_Serializable>(msgTxt)
+                    val user = convertToUser(userSerializable)
+                    nettyViewModel.insertUser(user)
+                    NettyClientConfig.progressBar1Counter++
+                }
+                "Delete" -> {
+                    val userSerializable = jsonParser.decodeFromString<User_Serializable>(msgTxt)
+                    val user = convertToUser(userSerializable)
+                    nettyViewModel.deleteUser(user.UserID)
+                }
+                "Insert_Count" -> {
+                    NettyClientConfig.progressBar2Total = msgTxt.toInt()
+                }
+                else -> {
+
+                }
+            }
+        }
+    }
+
+    private suspend fun handlePackingHeaderMessage(commuForm: CommuForm) {
+        NettyClientConfig.textView200Txt = "Packing Header"
+        val msgTxt = commuForm.Str.removePrefix("@")
+        withContext(Dispatchers.IO) {
+            when (commuForm.Action) {
+                "Update" -> {
+                    val phList = jsonParser.decodeFromString<List<PackingHeader_Serializable>>(msgTxt)
+                    if (phList.size >= 2) {
+                        val phA = convertToPackingHeader(phList[0])
+                        val phB = convertToPackingHeader(phList[1])
+                        if (phA.No == phB.No) {
+                            nettyViewModel.updatePH(phB)
+                        } else {
+                            nettyViewModel.deletePackingHeader(phA.No)
+                            nettyViewModel.insertPH(phB)
+                        }
+                    } else {
+
+                    }
+                }
+                "Insert" -> {
+                    val phSerializable = jsonParser.decodeFromString<PackingHeader_Serializable>(msgTxt)
+                    val ph = convertToPackingHeader(phSerializable)
+                    nettyViewModel.insertPH(ph)
+                    NettyClientConfig.progressBar1Counter++
+                }
+                "Delete" -> {
+                    val phSerializable = jsonParser.decodeFromString<PackingHeader_Serializable>(msgTxt)
+                    val ph = convertToPackingHeader(phSerializable)
+                    nettyViewModel.deletePackingHeader(ph.No)
+                }
+                "Init_Done" -> sendInitDoneResponse()
+                else -> {
+
+                }
+            }
+        }
+    }
+
+    private suspend fun handlePackingLineMessage(commuForm: CommuForm) {
+        NettyClientConfig.textView200Txt = "Packing Line"
+        val msgTxt = commuForm.Str.removePrefix("@")
+        withContext(Dispatchers.IO) {
+            when (commuForm.Action) {
+                "Update" -> {
+                    val plList = jsonParser.decodeFromString<List<PackingLine_Serializable>>(msgTxt)
+                    if (plList.size >= 2) {
+                        val plA = convertToPackingLine(plList[0])
+                        val plB = convertToPackingLine(plList[1])
+                        if (plA.DocumentNo == plB.DocumentNo && plA.LineNo == plB.LineNo) {
+                            nettyViewModel.updatePL(plB)
+                        } else {
+                            nettyViewModel.deletePackingLine(plA.DocumentNo, plA.LineNo)
+                            nettyViewModel.insertPL(plB)
+                        }
+                    }
+                }
+                "Insert" -> {
+                    val plSerializable = jsonParser.decodeFromString<PackingLine_Serializable>(msgTxt)
+                    val pl = convertToPackingLine(plSerializable)
+                    nettyViewModel.insertPL(pl)
+                }
+                "Delete" -> {
+                    val plSerializable = jsonParser.decodeFromString<PackingLine_Serializable>(msgTxt)
+                    val pl = convertToPackingLine(plSerializable)
+                    nettyViewModel.deletePackingLine(pl.DocumentNo, pl.LineNo)
+                }
+            }
+        }
+    }
+
+    // 其他业务模块（Mapping/Scan Label String等）的handle方法类似，此处省略重复代码
+    // 可参考handlePackingHeaderMessage/handlePackingLineMessage的写法补充
+
+    private fun handleInitialAction(commuForm: CommuForm) {
+        NettyClientConfig.firstConnect = false
+        sharedPrefs.edit().putString("FirstConnect", "false").apply()
+        NettyClientConfig.isUpdateFinish = true
+        // 发送连接成功响应
+        val responseCommuForm = CommuForm("SQL", "success", "success", "")
+        try {
+            if (::nettyTcpClient.isInitialized && nettyTcpClient.connectStatus) {
+                nettyTcpClient.sendMsgToServer(jsonParser.encodeToString(responseCommuForm))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "发送初始化成功响应失败", e)
+        }
+    }
+
+    // ------------------------ 实体类转换方法 ------------------------
+    private fun convertToUser(serializableUser: User_Serializable): User {
+        return User(
+                serializableUser.UserID,
+                serializableUser.Password,
+                serializableUser.CreateUser,
+                serializableUser.CreationDate,
+                serializableUser.LastModifyUser,
+                serializableUser.LastModifyDate
+        )
+    }
+
+    private fun convertToPackingHeader(serializablePH: PackingHeader_Serializable): PackingHeader {
+        return PackingHeader(
+                serializablePH.No,
+                serializablePH.BillToCustomerNo,
+                serializablePH.BillToName,
+                serializablePH.BillToName2,
+                serializablePH.TotalCarton,
+                serializablePH.CustomerGroup,
+                serializablePH.ShiptoCode,
+                serializablePH.ShippingAgentCode,
+                serializablePH.ShiptoName,
+                serializablePH.ShiptoName2,
+                serializablePH.ShiptoAddress,
+                serializablePH.ShiptoAddress2,
+                serializablePH.ShiptoCity,
+                serializablePH.ShiptoContact,
+                serializablePH.ShiptoPostCode,
+                serializablePH.ShiptoCounty,
+                serializablePH.ShiptoCountryCode,
+                serializablePH.ShiptoPhone,
+                serializablePH.ShiptoFax,
+                serializablePH.CountryofOrigin,
+                serializablePH.CustomerPO1,
+                serializablePH.CustomerPO2,
+                serializablePH.CustomerPO3,
+                serializablePH.CustomerPO4,
+                serializablePH.CustomerPO5,
+                serializablePH.CustomerPOList,
+                serializablePH.LastUpdatedUserID,
+                serializablePH.LastUpdatedDateTime,
+                false,
+                false
+        )
+    }
+
+    private fun convertToPackingLine(serializablePL: PackingLine_Serializable): PackingLine {
+        return PackingLine(
+                serializablePL.DocumentNo,
+                serializablePL.LineNo,
+                serializablePL.NumberOfCartons,
+                serializablePL.ItemNo,
+                serializablePL.CrossReferenceNo,
+                serializablePL.QuantityPerCarton,
+                serializablePL.SubtotalQuantity,
+                serializablePL.CountryofOrigin,
+                serializablePL.CartonID
+        )
+    }
+
+    // 其他实体类（Mapping/OuterCarton等）的转换方法类似，此处省略重复代码
+
+    // ------------------------ MAC地址获取方法 ------------------------
+    /**
+     * 获取设备MAC地址（兼容Android 6.0+）
+     */
+    private fun getMacAddress(): String {
+        try {
+            val networkInterfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
+            for (nif in networkInterfaces) {
+                if (!nif.name.equals("wlan0", ignoreCase = true)) continue
+                val macBytes = nif.hardwareAddress ?: continue
+                val stringBuilder = StringBuilder()
+                for (b in macBytes) {
+                    stringBuilder.append(String.format("%02X:", b))
+                }
+                if (stringBuilder.isNotEmpty()) {
+                    stringBuilder.deleteCharAt(stringBuilder.length - 1)
+                    return stringBuilder.toString()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取MAC地址失败", e)
+        }
+        // 默认MAC地址
+        return "02:00:00:00:00:00"
+    }
+
+    /**
+     * 获取MAC地址（Android 6.0以下兼容）
+     */
+    @Suppress("DEPRECATION")
+    private fun getMacAddressCompat(context: Context): String {
+        return try {
+            val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wifiInfo = wifiManager.connectionInfo
+            wifiInfo.macAddress ?: getMacAddress()
+        } catch (e: Exception) {
+            Log.e(TAG, "兼容模式获取MAC地址失败", e)
+            getMacAddress()
+        }
+    }
+
+    // ------------------------ 公共方法 ------------------------
+    /**
+     * 发送消息到服务端
+     */
+    fun sendMessageToServer(msgContent: String) {
+        val commuForm = CommuForm("SQL", "Select", "All", msgContent)
+        try {
+            if (::nettyTcpClient.isInitialized && nettyTcpClient.connectStatus) {
+                nettyTcpClient.sendMsgToServer(jsonParser.encodeToString(commuForm))
+            } else {
+                Log.w(TAG, "Netty未连接，无法发送消息")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "发送消息到服务端失败", e)
+        }
+    }
+
+    /**
+     * 获取Netty连接状态
+     */
+    fun getConnectStatus(): Boolean {
+        return if (::nettyTcpClient.isInitialized) nettyTcpClient.connectStatus else false
+    }
+
+    /**
+     * 发送Init_Done响应
+     */
+    private fun sendInitDoneResponse() {
+        val commuForm = CommuForm("SQL", "Select", "All_Update_PL", "")
+        try {
+            if (::nettyTcpClient.isInitialized && nettyTcpClient.connectStatus) {
+                nettyTcpClient.sendMsgToServer(jsonParser.encodeToString(commuForm))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "发送Init_Done响应失败", e)
+        }
+    }
+}
+
+/**
+ * Netty客户端配置类（存储全局状态和常量）
+ */
+object NettyClientConfig {
+    // 消息完成标识
+    var isMsgDone: Boolean = false
+    // 接收消息缓冲区
+    val receivedMsgBuf: ByteBuf = Unpooled.buffer(20 * 1024 * 1024) // 20MB
+    // 数据块大小
+    const val dataSize: Int = 4096
+    // 是否首次连接
+    var firstConnect: Boolean = false
+    // Netty状态
+    var nettyState: Boolean = false
+    // Netty连接状态
+    var isNettyConnected: Boolean = false
+    // 更新完成标识
+    var isUpdateFinish: Boolean = false
+    // 文本显示内容
+    var textView200Txt: String = ""
+    // 进度条2计数
+    var progressBar2Counter: Int = 0
+    // 进度条2总数
+    var progressBar2Total: Int = 0
+    // 进度条1总数
+    var progressBar1Total: Int = 0
+    // 进度条1计数
+    var progressBar1Counter: Int = 0
+
+    fun releaseResources() {
+        if (receivedMsgBuf.isReadable) {
+            receivedMsgBuf.release()
+        }
+    }
+}
