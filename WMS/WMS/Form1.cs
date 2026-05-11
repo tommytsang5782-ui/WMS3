@@ -1102,5 +1102,7 @@ namespace WMS
         {
             return _metadataBuilder.BuildPageConfig(pageCode, _tableTypeMapping, BuildShellMenu);
         }
+
     }
+
 }

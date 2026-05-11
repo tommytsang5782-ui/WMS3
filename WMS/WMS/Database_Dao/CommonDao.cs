@@ -7,6 +7,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations.Schema;
+using static WMS.Models.SchemaModels;
 
 namespace WMS.Database_Dao
 {
@@ -411,22 +412,29 @@ namespace WMS.Database_Dao
                     return tableName;
             }
         }
-        //public class PageConfig
-        //{
-        //    private String pageTitle;
-        //    private List<ColumnDef> columns; // 用於 List Page
-        //    private List<FieldDef> fields;   // 用於 Card Page (新增/編輯)
-        //    private List<String> permissions; // 按鈕權限
+        public PageSchema GetDynamicPage(Type entityType, List<Dictionary<string, object>> data)
+        {
+            PageSchema schema = new PageSchema();
 
-        //    // Getters and Setters...
-        //}
+            // C# 的集合新增元素是用 Add() (大寫 A)，不是 add()
+            // 獲取所有屬性 (Properties)
+            PropertyInfo[] properties = entityType.GetProperties();
 
-        //public class ColumnDef
-        //{
-        //    private String header;    // 表頭文字
-        //    private String dataKey;   // 對應 Entity 的屬性名
-        //    private String type;      // string, number, date, status_tag
-        //}
+            foreach (PropertyInfo prop in properties)
+            {
+                TableColumnDef col = new TableColumnDef
+                {
+                    Title = prop.Name.ToUpper(), // 自動將屬性名轉為大寫作為標題
+                    DataKey = prop.Name,
+                    Width = 100
+                };
+                schema.Columns.Add(col); // C# 使用 Add
+            }
+
+            schema.Data = data;
+            return schema;
+        }
+
     }
 
 
