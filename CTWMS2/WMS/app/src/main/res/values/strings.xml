@@ -1,0 +1,146 @@
+<resources>
+    <string name="app_name">WMS</string>
+    <string name="ip">"192.168.0.132"</string>
+    <string name="port">5123</string>
+    <string name="title_activity_test">TestActivity</string>
+    <!-- Strings used for fragments for navigation -->
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="second_fragment_label">Second Fragment</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <integer name="Big_ScanCartonLabel_1">1</integer> <!-- OuterOnly -->
+    <integer name="Big_ScanCartonLabel_2">1</integer> <!-- Outer Include Inner -->
+    <integer name="Big_ScanCartonLabel_3">1</integer> <!-- OuterAndInner -->
+    <integer name="Small_ScanCartonLabel_1">0</integer> <!-- OuterOnly -->
+    <integer name="Small_ScanCartonLabel_2">0</integer> <!-- Outer Include Inner -->
+    <integer name="Small_ScanCartonLabel_3">5</integer> <!-- OuterAndInner -->
+    <integer name="Big_PrintCartonLabel_1">1</integer> <!-- OuterOnly -->
+    <integer name="Big_PrintCartonLabel_2">1</integer> <!-- Outer Include Inner -->
+    <integer name="Big_PrintCartonLabel_3">1</integer> <!-- OuterAndInner -->
+    <integer name="Small_PrintCartonLabel_1">0</integer> <!-- OuterOnly -->
+    <integer name="Small_PrintCartonLabel_2">1</integer> <!-- Outer Include Inner -->
+    <integer name="Small_PrintCartonLabel_3">1</integer> <!-- OuterAndInner -->
+
+    <string name="hello_first_fragment">Hello first fragment</string>
+    <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
+    <!--         Welcome         -->
+    <string name="Welcome_initialization">Initialization...</string>
+    <string name="Welcome_init">Init</string>
+    <string name="Welcome_in">Init Complete</string>
+    <string name="Welcome_connectToServer">Connect to Server</string>
+    <string name="Welcome_ReconnectToServer">Reconnect to Server</string>
+    <string name="Welcome_Fail">Fail</string>
+    <string name="Welcome_ConnectionFail">Connection failed</string>
+
+    <!--         Login         -->
+    <string name="Login_title">Login</string>
+    <string name="Login_PlainText1">User Name</string>
+    <string name="Login_PlainText2">Password</string>
+    <string name="Login_Button1">Login</string>
+    <string name="Login_Menu_Item0">Change Server</string>
+    <string name="Login_Menu_Item1">Language</string>
+    <string name="Login_Menu_Item2">Exit</string>
+    <string name="Login_msg1">Please fill username and password</string>
+    <string name="Login_msg2">User doesn\'t exist</string>
+    <string name="Login_msg3">Please check your Password</string>
+    <string name="Login_msg4">Connection Failed</string>
+    <!--         Menu         -->
+    <string name="Menu_title">Main Menu</string>
+    <string name="Menu_item1">Standrad Processing</string>
+    <string name="Menu_item2">Prescan</string>
+    <string name="Menu_item3">Prescan - Direct Print</string>
+    <string name="Menu_item4">View</string>
+    <string name="Menu_item5">Setup</string>
+    <string name="Menu_item6">Logout</string>
+    <string name="Menu_Menu_item1">Setup</string>
+    <string name="Menu_Menu_item2">Logout</string>
+    <string name="Menu_Menu_item3">Exit</string>
+
+    <!--         Socket Setting         -->
+    <string name="Setting_Socket_title">Server Address Setup</string>
+    <string name="Setting_Socket_Button1">OK</string>
+    <string name="Setting_Socket_Button2">Reset</string>
+    <!--         Setting         -->
+    <string name="Setting_title">Setting</string>
+    <string name="Setting_item1">Default Printer</string>
+    <string name="Setting_item2">Customer Group Printer</string>
+    <string name="Setting_item3">Delete</string>
+    <string name="Setting_item4">Language</string>
+    <string name="Setting_Printer_title">Default Printer</string>
+    <string name="Setting_Printer_button1">OK</string>
+
+    <!--         Direct Print         -->
+    <string name="DirectPrint_MergeToBigCarton">Merge To Big Carton</string>
+    <string name="DirectPrint_SplitSmallCarton">Split Small Carton</string>
+    <string name="DirectPrint_Undo">Undo</string>
+    <string name="DirectPrint_Finish">Finish</string>
+    <string name="DirectPrint_msg1">No match decoding</string>
+    <string name="DirectPrint_btn1">Finish</string>
+    <string name="DirectPrint_btn2">Cancel</string>
+    <string name="DirectPrint_btn3">Undo</string>
+    <string name="DirectPrint_btn4">Finish</string>
+    <string name="DirectPrint_btn5">Merge To Big Carton</string>
+    <string name="DirectPrint_btn6">Split Small Carton</string>
+    <string name="DirectPrint_btn7">Undo</string>
+    <string name="DirectPrint_btn8">Finish</string>
+
+    <!--         Dialog         -->
+    <string name="Dialog_Cancel">Cancel</string>
+    <string name="Dialog_OK">OK</string>
+    <string name="Dialog_Discard">Discard</string>
+    <string name="Dialog_msg1">cannot be empty</string>
+    <string name="Dialog_Retry">Retry</string>
+    <string name="Dialog_Setting">Setting</string>
+    <string name="Dialog_Exit">Exit</string>
+
+
+    <!--         Standrad Processing         -->
+    <string name="StandradProcessing_btn1">Scan Label</string>
+    <string name="StandradProcessing_menu_item1">Packing Line</string>
+    <string name="StandradProcessing_menu_item2">Change Prescan</string>
+    <string name="StandradProcessing_btn2">Cancrl</string>
+    <string name="StandradProcessing_btn3">Merge To Big Carton</string>
+    <string name="StandradProcessing_btn4">Split Small Carton</string>
+    <string name="StandradProcessing_btn5">Suspend</string>
+    <string name="StandradProcessing_btn6">Finish</string>
+    <string name="StandradProcessing_menu2_item1">Packing Line</string>
+    <string name="StandradProcessing_Dialog1_text1">Continue</string>
+    <string name="StandradProcessing_Dialog1_text2">Continue scanning?</string>
+    <string name="StandradProcessing_Dialog1_text3">Yes</string>
+    <string name="StandradProcessing_Dialog1_text4">No</string>
+    <string name="StandradProcessing_Dialog2_text1">Success</string>
+    <string name="StandradProcessing_Dialog2_text2">Scan Complete</string>
+    <string name="StandradProcessing_Dialog2_text3">OK</string>
+    <string name="StandradProcessing_msg1">Press Suspend or Finish to leave</string>
+    <string name="StandradProcessing_msg2">Please confirm the Packing List No.</string>
+    <string name="StandradProcessing_msg3">Quantity does not match Qty per Carton</string>
+
+    <!--         Barcode Reader         -->
+    <string name="barcodeReader_msg1">Failed to apply properties</string>
+    <string name="barcodeReader_msg2">Scanner is not claimed</string>
+    <string name="barcodeReader_msg3">Scanner unavailable</string>
+    <string name="barcodeReader_msg4">No data</string>
+    <string name="barcodeReader_msg5">Scanner unavailable</string>
+
+
+    <!--         Prescan         -->
+    <string name="Prescan_Menu_item1">Outer Only</string>
+    <string name="Prescan_Menu_item2">Outer Include Inner</string>
+    <string name="Prescan_Menu_item3">Outer And Inner</string>
+    <string name="Prescan_Menu_item4">Continue Prescan</string>
+    <string name="Prescan_msg1">The Label has been scanned</string>
+    <string name="Prescan_msg2">No match decoding</string>
+    <string name="Prescan_msg3">No match decoding</string>
+    <string name="Prescan_btn1">Cancrl</string>
+    <string name="Prescan_btn2">Finish</string>
+    <string name="title_activity_check_page">CheckPage</string>
+
+    <string name="Loadingtxt">Lodaing ...</string>
+    <string name="title_activity_aa">AA</string>
+    <string name="loading_data">Loading data...</string>
+    <string name="no_data_available">No relevant packing list data available</string>
+    <string name="invalid_operation_mode">Invalid operation mode</string>
+    <string name="unknown_viewmodel_class">Unknown ViewModel class</string>
+
+
+</resources>

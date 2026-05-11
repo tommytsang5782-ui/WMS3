@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="com.honeywell.decode.permission.DECODE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <application
+        android:name=".WMSApplication"
+        android:allowBackup="true"
+        android:icon="@drawable/ic_icon2_foreground"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_icon_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.WMS"
+        android:usesCleartextTraffic="true">
+        <activity android:name=".Welcome.DataSyncActivity" />
+        <activity android:name=".ViewData.Prescan.Inner.ViewPrescanInner2Activity" />
+        <activity android:name=".StandradProcessing.StandradProcessingChecking" />
+        <activity android:name=".Setting.LanguageActivity" />
+        <activity android:name=".StandradProcessing.SelectPrescan.SelectPrescanActivity" />
+        <activity android:name=".Prescan.PrescanCustomerGroupActivity" />
+        <activity android:name=".ViewData.Item.ViewItemActivity" />
+        <activity android:name=".ViewData.CustomerGroup.ViewCustomerGroupActivity" />
+        <activity android:name=".Setting.CustomerGroupPrinterSettingActivity" />
+        <activity android:name=".ViewData.Printer.ViewPrinterActivity" />
+        <activity android:name=".Setting.CustomerGroupPrinterSettingListActivity" />
+        <activity android:name=".CustomerGroup.CustomerGroupActivity" />
+        <activity android:name=".ViewData.ViewMenu2Activity" />
+        <activity android:name=".Setting.PrinterSettingActivity" />
+        <activity android:name=".Setting.SettingMenuActivity" />
+        <activity android:name=".Prescan.PrescanSplitInnerCartonActivity" />
+        <activity android:name=".Prescan.PrescanMergeToBigCartonActivity" />
+        <activity android:name=".ViewData.Mapping.ViewMappingActivity" />
+        <activity
+            android:name=".test.TestActivity"
+            android:label="@string/title_activity_test"
+            android:theme="@style/Theme.WMS.NoActionBar" />
+        <activity android:name=".Prescan.Prescan_No_List_Activity" />
+
+
+        <activity
+            android:name=".Socket.ui.ConfigClientActivity"
+            android:label="Setup" />
+        <activity android:name=".Prescan.PrescanMenuActivity" />
+        <activity android:name=".ViewData.Prescan.Outer.ViewPrescanOuterActivity" />
+        <activity android:name=".ViewData.Prescan.Inner.ViewPrescanInnerActivity" />
+        <activity android:name=".ViewData.Prescan.ViewPrescanActivity" />
+        <activity
+            android:name=".Prescan.PrescanInnerCartonLabelActivity"
+            android:label="Prescan" />
+        <activity
+            android:name=".Prescan.PrescanOuterCartonLabelActivity"
+            android:label="Prescan" />
+        <activity
+            android:name=".Prescan.PrescanCartonLabelActivity"
+            android:label="Prescan" />
+        <activity
+            android:name=".StandradProcessing.ScanCartonLabelActivity"
+            android:label="Standrad Processing" />
+        <activity
+            android:name=".StandradProcessing.ScanPackingNoActivity"
+            android:label="Standrad Processing" />
+        <activity android:name=".ViewData.ViewMenuActivity" />
+        <activity android:name=".ViewData.ViewScanLabelActivity" />
+        <activity android:name=".ViewData.ViewUserActivity" />
+        <activity android:name=".ViewData.ViewPackingLineActivity" />
+        <activity android:name=".ViewData.ViewPackingHeaderActivity" />
+        <activity
+            android:name=".Login.LoginActivity"
+            android:label="Login"> <!-- Login Page 修改標題 -->
+        </activity>
+        <activity
+            android:name=".Welcome.WelcomeActivity"
+            android:exported="true"
+            android:theme="@style/WelcomePageStyle"> <!-- 套用全屏設置，No Action Bar -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".MainActivity"
+            android:label="Menu" />
+
+
+        <!-- 注册NettyClientService -->
+        <service
+            android:name=".Socket.NettyClient"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <!--
+        <service
+            android:name=".Service.MyService"
+            tools:ignore="Instantiatable" />
+        -->
+    </application>
+
+</manifest>

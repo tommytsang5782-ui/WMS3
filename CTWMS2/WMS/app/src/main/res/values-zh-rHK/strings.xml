@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WMS</string>
+    <string name="ip">192.168.0.132</string>
+    <string name="port">5123</string>
+    <string name="title_activity_test">測試頁面</string>
+    <string name="first_fragment_label">第一個片段</string>
+    <string name="second_fragment_label">第二個片段</string>
+    <string name="next">下一步</string>
+    <string name="previous">上一步</string>
+    <string name="hello_first_fragment">你好，第一個片段</string>
+    <string name="hello_second_fragment">你好，第二個片段。參數：%1$s</string>
+    <string name="title_activity_check_page">檢查頁</string>
+    <string name="title_activity_aa">AA</string>
+
+    <!--         Welcome         -->
+    <string name="Welcome_initialization">初始化...</string>
+    <string name="Welcome_init">初始化</string>
+    <string name="Welcome_in">初始化完成</string>
+    <string name="Welcome_connectToServer">連接伺服器</string>
+    <string name="Welcome_ReconnectToServer">正在重新連接</string>
+    <string name="Welcome_Fail">失敗</string>
+    <string name="Welcome_ConnectionFail">連接失敗</string>
+
+    <!--         Login         -->
+    <string name="Login_title">登入</string>
+    <string name="Login_PlainText1">用戶名</string>
+    <string name="Login_PlainText2">密碼</string>
+    <string name="Login_Button1">登入</string>
+    <string name="Login_Menu_Item0">修改伺服器</string>
+    <string name="Login_Menu_Item1">語言</string>
+    <string name="Login_Menu_Item2">離開</string>
+    <string name="Login_msg1">請輸入用戶名及密碼</string>
+    <string name="Login_msg2">用戶名不存在</string>
+    <string name="Login_msg3">請檢查密碼</string>
+    <string name="Login_msg4">連接失敗</string>
+
+    <!--         Menu         -->
+    <string name="Menu_title">主目錄</string>
+    <string name="Menu_item1">Standrad Processing</string>
+    <string name="Menu_item2">Prescan</string>
+    <string name="Menu_item3">Prescan - Direct Print</string>
+    <string name="Menu_item4">查看</string>
+    <string name="Menu_item5">設置</string>
+    <string name="Menu_item6">登出</string>
+    <string name="Menu_Menu_item1">設置</string>
+    <string name="Menu_Menu_item2">登出</string>
+    <string name="Menu_Menu_item3">離開</string>
+
+
+    <!--         Socket Setting         -->
+    <string name="Setting_Socket_title">伺服器地址設置</string>
+    <string name="Setting_Socket_Button1">確定</string>
+    <string name="Setting_Socket_Button2">還原</string>
+
+
+    <!--         Setting         -->
+    <string name="Setting_title">設置</string>
+    <string name="Setting_item1">預設打印機</string>
+    <string name="Setting_item2">客戶組打印機</string>
+    <string name="Setting_item3">刪除</string>
+    <string name="Setting_item4">語言</string>
+    <string name="Setting_Printer_title">預設打印機</string>
+    <string name="Setting_Printer_button1">確定</string>
+
+    <!--         Direct Print         -->
+    <string name="DirectPrint_MergeToBigCarton">合併為大箱</string>
+    <string name="DirectPrint_SplitSmallCarton">分折細箱</string>
+    <string name="DirectPrint_Undo">還原</string>
+    <string name="DirectPrint_Finish">完成</string>
+    <string name="DirectPrint_msg1">無匹配解碼</string>
+    <string name="DirectPrint_btn1">完成</string>
+    <string name="DirectPrint_btn2">取消</string>
+    <string name="DirectPrint_btn3">還原</string>
+    <string name="DirectPrint_btn4">完成</string>
+    <string name="DirectPrint_btn5">合併為大箱</string>
+    <string name="DirectPrint_btn6">分折細箱</string>
+    <string name="DirectPrint_btn7">還原</string>
+    <string name="DirectPrint_btn8">完成</string>
+
+    <!--         Dialog         -->
+    <string name="Dialog_Cancel">取消</string>
+    <string name="Dialog_OK">確定</string>
+    <string name="Dialog_Discard">放棄</string>
+    <string name="Dialog_msg1">不能為空</string>
+    <string name="Dialog_Retry">重試</string>
+    <string name="Dialog_Setting">設置</string>
+    <string name="Dialog_Exit">離開</string>
+
+    <!--         Standrad Processing         -->
+    <string name="StandradProcessing_btn1">掃描標籤</string>
+    <string name="StandradProcessing_menu_item1">裝箱單細節</string>
+    <string name="StandradProcessing_menu_item2">更變Prescan</string>
+    <string name="StandradProcessing_btn2">取消</string>
+    <string name="StandradProcessing_btn3">合併為大箱</string>
+    <string name="StandradProcessing_btn4">分折細箱</string>
+    <string name="StandradProcessing_btn5">暫停</string>
+    <string name="StandradProcessing_btn6">完成</string>
+    <string name="StandradProcessing_menu2_item1">裝箱單細節</string>
+    <string name="StandradProcessing_Dialog1_text1">繼續</string>
+    <string name="StandradProcessing_Dialog1_text2">繼續上次掃描？</string>
+    <string name="StandradProcessing_Dialog1_text3">是</string>
+    <string name="StandradProcessing_Dialog1_text4">否</string>
+    <string name="StandradProcessing_Dialog2_text1">成功</string>
+    <string name="StandradProcessing_Dialog2_text2">掃描已完成</string>
+    <string name="StandradProcessing_Dialog2_text3">確定</string>
+    <string name="StandradProcessing_msg1">請按 暫停 或 完成 離開</string>
+    <string name="StandradProcessing_msg2">請確認Packing List No.</string>
+    <string name="StandradProcessing_msg3">數量與 Qty per Carton 不符</string>
+
+    <!--         Barcode Reader         -->
+    <string name="barcodeReader_msg1">未能應用屬性</string>
+    <string name="barcodeReader_msg2">未聲明掃描儀</string>
+    <string name="barcodeReader_msg3">掃描儀不可用</string>
+    <string name="barcodeReader_msg4">沒有數據</string>
+    <string name="barcodeReader_msg5">掃描儀不可用</string>
+
+    <!--         Prescan         -->
+    <string name="Prescan_Menu_item1">外箱</string>
+    <string name="Prescan_Menu_item2">外箱包含內箱</string>
+    <string name="Prescan_Menu_item3">外箱 及 內箱</string>
+    <string name="Prescan_Menu_item4">繼續Prescan</string>
+    <string name="Prescan_msg1">標籤已被掃描</string>
+    <string name="Prescan_msg2">無匹配解碼</string>
+    <string name="Prescan_msg3">無匹配解碼</string>
+    <string name="Prescan_btn1">取消</string>
+    <string name="Prescan_btn2">完成</string>
+
+    <string name="Loadingtxt">加載中...</string>
+    <string name="loading_data">正在載入資料...</string>
+    <string name="no_data_available">暫無相關裝箱單數據</string>
+    <string name="invalid_operation_mode">無效的操作模式</string>
+    <string name="unknown_viewmodel_class">未知的ViewModel類</string>
+
+
+</resources>

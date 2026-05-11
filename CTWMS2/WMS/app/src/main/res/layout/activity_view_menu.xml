@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".ViewData.ViewMenuActivity" >
+
+    <Button
+        android:id="@+id/ViewUserBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="User"
+        android:textAllCaps="false" />
+
+    <Button
+        android:id="@+id/ViewPackingBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Packing List"
+        android:textAllCaps="false"/>
+
+    <Button
+        android:id="@+id/ViewLabelBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Scan Label"
+        android:textAllCaps="false" />
+
+    <Button
+        android:id="@+id/ViewPrescanBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Prescan"
+        android:textAllCaps="false" />
+
+    <Button
+        android:id="@+id/ViewMappingBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Mapping"
+        android:textAllCaps="false" />
+</LinearLayout>

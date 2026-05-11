@@ -1,0 +1,752 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{5CBF8A48-B16C-4FC1-837B-BE33C1A2854E}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>WMSClient</RootNamespace>
+    <AssemblyName>WMSClient</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <TargetFrameworkProfile />
+    <!-- 启用自动绑定重定向，解决版本冲突 -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <PublishUrl>C:\Users\ttsang\Desktop\WMS\EXE2\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>3</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <PublishWizardCompleted>true</PublishWizardCompleted>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestCertificateThumbprint>168041FFE4B625490CBCABB8F09FD2BAEE942613</ManifestCertificateThumbprint>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestKeyFile>WMSClient_TemporaryKey.pfx</ManifestKeyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GenerateManifests>true</GenerateManifests>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignManifests>true</SignManifests>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.2.0\lib\net45\EntityFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.2.0\lib\net45\EntityFramework.SqlServer.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="PresentationFramework" />
+    <Reference Include="Seagull.BarTender.Print, Version=11.0.4.1, Culture=neutral, PublicKeyToken=109ff779a1b4cbc7, processorArchitecture=x86">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Windows\Microsoft.NET\assembly\GAC_32\Seagull.BarTender.Print\v4.0_11.0.4.1__109ff779a1b4cbc7\Seagull.BarTender.Print.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Messaging" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Web.DynamicData" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Base\BaseBusinessForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Base\BaseListForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CardPage.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CardPage.Designer.cs">
+      <DependentUpon>CardPage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Class\EditExcel.cs" />
+    <Compile Include="Class\PrintLabel.cs" />
+    <Compile Include="Cartonfolder\Inner_Carton.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Cartonfolder\Inner_Carton.Designer.cs">
+      <DependentUpon>Inner_Carton.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Cartonfolder\Outer_Carton.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Cartonfolder\Outer_Carton.Designer.cs">
+      <DependentUpon>Outer_Carton.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Cartonfolder\Prescan_Inner_Carton.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Cartonfolder\Prescan_Inner_Carton.Designer.cs">
+      <DependentUpon>Prescan_Inner_Carton.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Cartonfolder\Prescan_Outer_Carton.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Cartonfolder\Prescan_Outer_Carton.Designer.cs">
+      <DependentUpon>Prescan_Outer_Carton.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Class\SocketConnect.cs" />
+    <Compile Include="Class\ToDataTable.cs" />
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanInnerCartonList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanInnerCartonList.Designer.cs">
+      <DependentUpon>ClosedPrescanInnerCartonList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanOuterCartonList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanOuterCartonList.Designer.cs">
+      <DependentUpon>ClosedPrescanOuterCartonList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ClosedPrescanfolder\ClosedPrescanList.Designer.cs">
+      <DependentUpon>ClosedPrescanList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="CompanyList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CompanyList.Designer.cs">
+      <DependentUpon>CompanyList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Configure.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Configure.Designer.cs">
+      <DependentUpon>Configure.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ConnectToTheServer.cs" />
+    <Compile Include="CustomerGroupfolder\CustomerGroupCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CustomerGroupfolder\CustomerGroupCard.Designer.cs">
+      <DependentUpon>CustomerGroupCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="CustomerGroupfolder\CustomerGroupList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CustomerGroupfolder\CustomerGroupList.Designer.cs">
+      <DependentUpon>CustomerGroupList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Filter\FilterForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Filter\FilterForm.Designer.cs">
+      <DependentUpon>FilterForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Form1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Form1.Designer.cs">
+      <DependentUpon>Form1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Form2.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Form2.Designer.cs">
+      <DependentUpon>Form2.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Form3.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Form3.Designer.cs">
+      <DependentUpon>Form3.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GlobalConstants.cs" />
+    <Compile Include="Itemfolder\ItemCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Itemfolder\ItemCard.Designer.cs">
+      <DependentUpon>ItemCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Itemfolder\ItemList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Itemfolder\ItemList.Designer.cs">
+      <DependentUpon>ItemList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Labelfolder\LabelCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Labelfolder\LabelCard.Designer.cs">
+      <DependentUpon>LabelCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Labelfolder\LabelList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Labelfolder\LabelList.Designer.cs">
+      <DependentUpon>LabelList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="List.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="List.Designer.cs">
+      <DependentUpon>List.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ListPage.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ListPage.Designer.cs">
+      <DependentUpon>ListPage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Loadding.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Loadding.Designer.cs">
+      <DependentUpon>Loadding.cs</DependentUpon>
+    </Compile>
+    <Compile Include="LoaderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="LoaderForm.Designer.cs">
+      <DependentUpon>LoaderForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Login.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Login.Designer.cs">
+      <DependentUpon>Login.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Main.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Main.Designer.cs">
+      <DependentUpon>Main.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Menu2Form.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Menu2Form.Designer.cs">
+      <DependentUpon>Menu2Form.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Mappingfolder\MappingCrossRef.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Mappingfolder\MappingCrossRef.Designer.cs">
+      <DependentUpon>MappingCrossRef.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Mappingfolder\MappingList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Mappingfolder\MappingList.Designer.cs">
+      <DependentUpon>MappingList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Menu3.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Menu3.Designer.cs">
+      <DependentUpon>Menu3.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ODataSetupPage.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ODataSetupPage.Designer.cs">
+      <DependentUpon>ODataSetupPage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PackingListfolder\Packing List.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PackingListfolder\Packing List.Designer.cs">
+      <DependentUpon>Packing List.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PackingListfolder\PackingLineList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PackingListfolder\PackingLineList.Designer.cs">
+      <DependentUpon>PackingLineList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PackingListfolder\PackingMappingList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PackingListfolder\PackingMappingList.Designer.cs">
+      <DependentUpon>PackingMappingList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PackingListfolder\PLCheckingPrescanQty.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PackingListfolder\PLCheckingPrescanQty.Designer.cs">
+      <DependentUpon>PLCheckingPrescanQty.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PackingListfolder\SelectPrescan.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PackingListfolder\SelectPrescan.Designer.cs">
+      <DependentUpon>SelectPrescan.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Prescanfolder\ClosedPrescanList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Prescanfolder\ClosedPrescanList.Designer.cs">
+      <DependentUpon>ClosedPrescanList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanCard.Designer.cs">
+      <DependentUpon>PrescanCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanList.Designer.cs">
+      <DependentUpon>PrescanList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanScanList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Prescanfolder\PrescanScanList.Designer.cs">
+      <DependentUpon>PrescanScanList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Printerfolder\PrinterCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Printerfolder\PrinterCard.Designer.cs">
+      <DependentUpon>PrinterCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Printerfolder\PrinterList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Printerfolder\PrinterList.Designer.cs">
+      <DependentUpon>PrinterList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PrinterProperties.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PrinterProperties.Designer.cs">
+      <DependentUpon>PrinterProperties.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\MyExtensions.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="ScanLabelStringfolder\ScanLabelStringList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScanLabelStringfolder\ScanLabelStringList.Designer.cs">
+      <DependentUpon>ScanLabelStringList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingLineList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingLineList.Designer.cs">
+      <DependentUpon>ScannedPackingLineList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingList.Designer.cs">
+      <DependentUpon>ScannedPackingList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingMappingList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScannedPackingListfolder\ScannedPackingMappingList.Designer.cs">
+      <DependentUpon>ScannedPackingMappingList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SetupPage.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SetupPage.Designer.cs">
+      <DependentUpon>SetupPage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Table.cs" />
+    <Compile Include="UIControls\SearchTextBox.cs" />
+    <Compile Include="UserCard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserCard.Designer.cs">
+      <DependentUpon>UserCard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserList.Designer.cs">
+      <DependentUpon>UserList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Utils\CommonUtils.cs" />
+    <Compile Include="Welcome.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Welcome.Designer.cs">
+      <DependentUpon>Welcome.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Include="Base\BaseBusinessForm.resx">
+      <DependentUpon>BaseBusinessForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CardPage.resx">
+      <DependentUpon>CardPage.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Cartonfolder\Inner_Carton.resx">
+      <DependentUpon>Inner_Carton.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Cartonfolder\Outer_Carton.resx">
+      <DependentUpon>Outer_Carton.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Cartonfolder\Prescan_Inner_Carton.resx">
+      <DependentUpon>Prescan_Inner_Carton.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Cartonfolder\Prescan_Outer_Carton.resx">
+      <DependentUpon>Prescan_Outer_Carton.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ClosedPrescanfolder\ClosedPrescanInnerCartonList.resx">
+      <DependentUpon>ClosedPrescanInnerCartonList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ClosedPrescanfolder\ClosedPrescanOuterCartonList.resx">
+      <DependentUpon>ClosedPrescanOuterCartonList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ClosedPrescanfolder\ClosedPrescanList.resx">
+      <DependentUpon>ClosedPrescanList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CompanyList.resx">
+      <DependentUpon>CompanyList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Configure.resx">
+      <DependentUpon>Configure.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CustomerGroupfolder\CustomerGroupCard.resx">
+      <DependentUpon>CustomerGroupCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CustomerGroupfolder\CustomerGroupList.resx">
+      <DependentUpon>CustomerGroupList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Filter\FilterForm.resx">
+      <DependentUpon>FilterForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Form1.resx">
+      <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Form2.resx">
+      <DependentUpon>Form2.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Form3.resx">
+      <DependentUpon>Form3.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Itemfolder\ItemCard.resx">
+      <DependentUpon>ItemCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Itemfolder\ItemList.resx">
+      <DependentUpon>ItemList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Labelfolder\LabelCard.resx">
+      <DependentUpon>LabelCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Labelfolder\LabelList.resx">
+      <DependentUpon>LabelList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="List.resx">
+      <DependentUpon>List.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ListPage.resx">
+      <DependentUpon>ListPage.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Loadding.resx">
+      <DependentUpon>Loadding.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LoaderForm.resx">
+      <DependentUpon>LoaderForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Login.resx">
+      <DependentUpon>Login.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Main.resx">
+      <DependentUpon>Main.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Mappingfolder\MappingCrossRef.resx">
+      <DependentUpon>MappingCrossRef.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Mappingfolder\MappingList.resx">
+      <DependentUpon>MappingList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Menu2Form.resx">
+      <DependentUpon>Menu2Form.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ODataSetupPage.resx">
+      <DependentUpon>ODataSetupPage.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PackingListfolder\Packing List.resx">
+      <DependentUpon>Packing List.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PackingListfolder\PackingLineList.resx">
+      <DependentUpon>PackingLineList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PackingListfolder\PackingMappingList.resx">
+      <DependentUpon>PackingMappingList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PackingListfolder\PLCheckingPrescanQty.resx">
+      <DependentUpon>PLCheckingPrescanQty.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PackingListfolder\SelectPrescan.resx">
+      <DependentUpon>SelectPrescan.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prescanfolder\ClosedPrescanList.resx">
+      <DependentUpon>ClosedPrescanList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prescanfolder\PrescanCard.resx">
+      <DependentUpon>PrescanCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prescanfolder\PrescanList.resx">
+      <DependentUpon>PrescanList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prescanfolder\PrescanScanList.resx">
+      <DependentUpon>PrescanScanList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Printerfolder\PrinterCard.resx">
+      <DependentUpon>PrinterCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Printerfolder\PrinterList.resx">
+      <DependentUpon>PrinterList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PrinterProperties.resx">
+      <DependentUpon>PrinterProperties.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <SubType>Designer</SubType>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScanLabelStringfolder\ScanLabelStringList.resx">
+      <DependentUpon>ScanLabelStringList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScannedPackingListfolder\ScannedPackingLineList.resx">
+      <DependentUpon>ScannedPackingLineList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScannedPackingListfolder\ScannedPackingList.resx">
+      <DependentUpon>ScannedPackingList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScannedPackingListfolder\ScannedPackingMappingList.resx">
+      <DependentUpon>ScannedPackingMappingList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SetupPage.resx">
+      <DependentUpon>SetupPage.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserCard.resx">
+      <DependentUpon>UserCard.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserList.resx">
+      <DependentUpon>UserList.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Welcome.resx">
+      <DependentUpon>Welcome.cs</DependentUpon>
+    </EmbeddedResource>
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <None Include="WMSClient_TemporaryKey.pfx" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\WMS.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\WMS_2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\NewDocument.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Edit.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\settings.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\settings %281%29.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\settings %283%29.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Refresh.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\View.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Cancel.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Help.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Box.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\MapAccounts.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Users.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\MapAccounts2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\User.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\User1.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Order.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Text.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Table.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Excel.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\ExportToExcel.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="Microsoft.Office.Core">
+      <Guid>{2DF8D04C-5BFA-101B-BDE5-00AA0044DE52}</Guid>
+      <VersionMajor>2</VersionMajor>
+      <VersionMinor>5</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>primary</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+    <COMReference Include="Microsoft.Office.Interop.Excel">
+      <Guid>{00020813-0000-0000-C000-000000000046}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>7</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>primary</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+    <COMReference Include="VBIDE">
+      <Guid>{0002E157-0000-0000-C000-000000000046}</Guid>
+      <VersionMajor>5</VersionMajor>
+      <VersionMinor>3</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>primary</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Filter.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Add.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\ClearFilter.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Search.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Search2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\CSearch.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\CSearch2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\ChangeLog.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Loadding.gif" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Print.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\WMS logo.png" />
+    <None Include="Resources\WMS logo2.png" />
+    <None Include="Resources\WMS logo1.png" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

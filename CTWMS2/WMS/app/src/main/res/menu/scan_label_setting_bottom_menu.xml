@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/scan_label_setting_bottom_outer"
+        android:iconTintMode="add"
+        android:title="Outer Only" />
+    <item
+        android:id="@+id/scan_label_setting_bottom_outerincludeinner"
+        android:title="Outer\n Include\n Inner" />
+    <item
+        android:id="@+id/scan_label_setting_bottom_outerandinner"
+        android:title="Outer\nAnd\nIinner" />
+</menu>
